@@ -20,7 +20,7 @@ public class AdminSecurity {
   return http.csrf(csrf->csrf.disable())
    .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
    .authorizeHttpRequests(a->a.requestMatchers("/actuator/health","/actuator/health/**").permitAll()
-    .requestMatchers("/api/v1/branches","/api/v1/branches/**").hasAnyRole("OWNER","CASHIER","STOCK_MANAGER")
+    .requestMatchers("/api/v1/branch-directory").hasAnyRole("OWNER","STOCK_MANAGER").requestMatchers("/api/v1/branches","/api/v1/branches/**").hasAnyRole("OWNER","CASHIER","STOCK_MANAGER")
     .anyRequest().denyAll())
    .oauth2ResourceServer(o->o.jwt(j->j.jwtAuthenticationConverter(converter))).build();
  }

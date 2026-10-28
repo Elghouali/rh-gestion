@@ -1,7 +1,7 @@
 # RH Gestion
 Application interne RH — Spring Boot microservices et Angular.
 
-## Ce qui fonctionne dans ce premier jalon
+## Socle validé
 - Connexion OIDC Keycloak avec Authorization Code + PKCE S256.
 - BFF : les jetons restent côté serveur ; session HttpOnly, protection CSRF et logout OIDC.
 - Administration Spring Boot et PostgreSQL/Flyway.
@@ -11,7 +11,7 @@ Application interne RH — Spring Boot microservices et Angular.
 - Impression A4 de la fiche des établissements.
 - Tests unitaires, API, PostgreSQL réel/JWT signé et parcours navigateur.
 
-Les produits, mouvements de stock, ventes, crédits, caisse et SAV sont les prochains modules. Les entrées correspondantes du menu sont désactivées ; aucun indicateur commercial fictif n'est présenté comme réel.
+Le module catalogue et stock est maintenant implémenté : variantes couleur/RAM/stockage, stock par site, ouvertures, ajustements et transferts avec réception partielle. Sa validation navigateur complète reste à terminer ; voir docs/STATUS.md. Ventes, crédits, caisse et SAV restent à développer.
 
 ## Prérequis
 Windows : PowerShell 7, Java 21, Maven Wrapper inclus, Node 24 compatible Angular 21 et Docker Desktop démarré, en mode conteneurs Linux.
@@ -64,6 +64,7 @@ Les pages du rapport et captures sont dans frontend/rh-web/playwright-report et 
 ## Structure
 - services/gateway-bff : session OIDC et TokenRelay.
 - services/administration-service : établissements et accès.
+- services/inventory-service : catalogue, stock et transferts, base PostgreSQL dédiée.
 - frontend/rh-web : interface Angular.
 - infra : conteneurs, reverse proxy et configuration d'identité locale.
 - contracts : contrat API et évolution des événements.
@@ -84,6 +85,6 @@ Les données de démonstration ne se chargent qu'avec le profil local.
 Modifier .env après import initial ne change pas automatiquement les mots de passe déjà enregistrés dans PostgreSQL/Keycloak. Toute rotation doit être appliquée dans les services concernés, sans effacer les volumes.
 
 ## Prochaine étape
-Infrastructure outbox/inbox et idempotence, puis service Inventory : catalogue, variantes et premier stock d'ouverture. Voir docs/architecture/conception-v2.md.
+Terminer la recette navigateur Inventory et sa documentation, puis achats et ventes. Voir docs/STATUS.md et docs/architecture/conception-v2.md.
 
 Sur certains JDK Windows, définir RH_JAVA_SOCKET_TMP dans .env vers un répertoire local existant au chemin court corrige la création des sockets AF_UNIX. Le lanceur transmet ce réglage uniquement aux tests, puis restaure JAVA_TOOL_OPTIONS.

@@ -1,0 +1,707 @@
+<section class="inventory-workspace">
+  <div class="inventory-heading">
+    <div>
+      <span class="eyebrow">RH / INVENTORY</span>
+      <h2>{{ t('catalog') }} &amp; {{ t('stock') }}</h2>
+    </div>
+    @if (owner()) {
+      <div class="toolbar">
+        <button
+          type="button"
+          data-testid="new-product"
+          class="solid"
+          (click)="openProduct()"
+          [disabled]="saving()"
+        >
+          {{ t('newProduct') }}</button
+        ><button type="button" (click)="openVariant()" [disabled]="saving()">
+          {{ t('newVariant') }}
+        </button>
+      </div>
+    }
+  </div>
+  <nav class="tabs" aria-label="Inventory">
+    <button
+      type="button"
+      [class.current]="tab() === 'catalog'"
+      (click)="setTab('catalog')"
+      [disabled]="saving()"
+    >
+      {{ t('catalog') }}
+    </button>
+    <button
+      type="button"
+      [class.current]="tab() === 'stock'"
+      (click)="setTab('stock')"
+      [disabled]="saving()"
+    >
+      {{ t('stock') }}
+    </button>
+    <button
+      type="button"
+      [class.current]="tab() === 'transfers'"
+      (click)="setTab('transfers')"
+      [disabled]="saving()"
+    >
+      {{ t('transfers') }}
+    </button>
+    <button
+      type="button"
+      [class.current]="tab() === 'history'"
+      (click)="showHistory()"
+      [disabled]="saving()"
+    >
+      {{ t('history') }}
+    </button>
+  </nav>
+  @if (saved()) {
+    <p class="success" role="status">{{ t('success') }}</p>
+  }
+  @if (formError() && !editor()) {
+    <p class="error" role="alert">{{ t(formError()!) }}</p>
+  }
+  @if (tab() !== 'transfers') {
+    <form class="filters" [formGroup]="filter" (ngSubmit)="apply()">
+      @if (tab() === 'catalog' || tab() === 'stock') {
+        <label class="search"
+          ><span>{{ t('search') }}</span
+          ><input formControlName="q" maxlength="100" [placeholder]="t('search')"
+        /></label>
+      }
+      @if (tab() !== 'catalog') {
+        <label
+          ><span>{{ t('site') }}</span
+          ><select formControlName="branchId">
+            <option value="">{{ t('allSites') }}</option>
+            @for (site of branches(); track site.id) {
+              <option [value]="site.id">{{ site.name }}</option>
+            }
+          </select></label
+        >
+      }
+      <button type="submit" [disabled]="loading()">{{ t('apply') }}</button>
+    </form>
+  }
+  @if (editor()) {
+    <section
+      class="editor"
+      [attr.aria-label]="
+        t(
+          editor() === 'product'
+            ? 'product'
+            : editor() === 'variant'
+              ? 'newVariant'
+              : editor() === 'stock'
+                ? stockMode() === 'opening'
+                  ? 'opening'
+                  : 'adjustment'
+                : editor() === 'transfer'
+                  ? 'newTransfer'
+                  : loss()
+                    ? 'resolveLoss'
+                    : 'receive'
+        )
+      "
+    >
+      <div class="editor-heading">
+        <h3>
+          {{
+            t(
+              editor() === 'product'
+                ? 'product'
+                : editor() === 'variant'
+                  ? 'newVariant'
+                  : editor() === 'stock'
+                    ? stockMode() === 'opening'
+                      ? 'opening'
+                      : 'adjustment'
+                    : editor() === 'transfer'
+                      ? 'newTransfer'
+                      : loss()
+                        ? 'resolveLoss'
+                        : 'receive'
+            )
+          }}
+        </h3>
+        <button type="button" (click)="close()" [disabled]="saving()">{{ t('close') }}</button>
+      </div>
+      @if (formError()) {
+        <p class="error" role="alert">{{ t(formError()!) }}</p>
+      }
+      @if (editor() === 'product') {
+        <form [formGroup]="productForm" (ngSubmit)="saveProduct()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('name') }}<input formControlName="name" maxlength="120" required
+              /></label>
+              <label
+                >{{ t('brand') }}<input formControlName="brand" maxlength="80" required
+              /></label>
+              @if (!editingProduct()) {
+                <label
+                  >{{ t('category')
+                  }}<select formControlName="category">
+                    <option value="PHONE">{{ t('PHONE') }}</option>
+                    <option value="ACCESSORY">{{ t('ACCESSORY') }}</option>
+                  </select></label
+                >
+              }
+              @if (editingProduct()) {
+                <label class="checkbox"
+                  ><input type="checkbox" formControlName="active" />{{ t('active') }}</label
+                >
+              }
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="solid">{{ t('save') }}</button
+              ><button type="button" (click)="close()">{{ t('cancel') }}</button>
+            </div>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'variant') {
+        <div class="model-search">
+          <label>{{ t('filterProducts') }}<input [formControl]="modelSearch" /></label
+          ><button type="button" (click)="searchModels()">{{ t('apply') }}</button>
+          @if (products().length < modelTotal()) {
+            <button type="button" (click)="searchModels(true)">{{ t('moreModels') }}</button>
+          }
+        </div>
+        <form [formGroup]="variantForm" (ngSubmit)="saveVariant()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('product')
+                }}<select formControlName="productId" [attr.aria-readonly]="!!editingVariant()">
+                  <option value="">{{ t('choose') }}</option>
+                  @for (product of products(); track product.id) {
+                    <option
+                      [value]="product.id"
+                      [disabled]="!!editingVariant() && product.id !== editingVariant()?.productId"
+                    >
+                      {{ product.brand }} — {{ product.name }}
+                      {{ product.active ? '' : '(' + t('inactive') + ')' }}
+                    </option>
+                  }
+                </select></label
+              >
+              <label
+                >{{ t('sku') }}<input formControlName="sku" maxlength="64" required dir="ltr"
+              /></label>
+              <label
+                >{{ t('color') }}<input formControlName="color" maxlength="80" required
+              /></label>
+              <label
+                >{{ t('ram')
+                }}<input type="number" formControlName="ramGb" min="1" max="1024" step="1"
+              /></label>
+              <label
+                >{{ t('storage')
+                }}<input type="number" formControlName="storageGb" min="1" max="65536" step="1"
+              /></label>
+              <label
+                >{{ t('wholesale')
+                }}<input formControlName="wholesalePrice" inputmode="decimal" required dir="ltr"
+              /></label>
+              <label
+                >{{ t('retail')
+                }}<input formControlName="retailPrice" inputmode="decimal" required dir="ltr"
+              /></label>
+              <label
+                >{{ t('minimum')
+                }}<input
+                  type="number"
+                  formControlName="minimumStock"
+                  min="0"
+                  max="1000000"
+                  step="1"
+                  required
+              /></label>
+              @if (editingVariant()) {
+                <label class="checkbox"
+                  ><input type="checkbox" formControlName="active" />{{ t('active') }}</label
+                >
+              }
+            </div>
+            <p class="hint">{{ t('identityHint') }}</p>
+            <div class="form-actions">
+              <button type="submit" class="solid">{{ t('save') }}</button
+              ><button type="button" (click)="close()">{{ t('cancel') }}</button>
+            </div>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'stock') {
+        <div class="model-search">
+          <label>{{ t('search') }}<input [formControl]="variantSearch" /></label
+          ><button type="button" (click)="searchVariants()">{{ t('apply') }}</button>
+          @if ((pickerPage() + 1) * 100 < pickerTotal()) {
+            <button type="button" (click)="searchVariants(true)">{{ t('next') }}</button>
+          }
+        </div>
+        <form [formGroup]="stockForm" (ngSubmit)="saveStock()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('site')
+                }}<select formControlName="branchId" required>
+                  <option value="">{{ t('choose') }}</option>
+                  @for (site of branches(); track site.id) {
+                    <option [value]="site.id">{{ site.name }}</option>
+                  }
+                </select></label
+              >
+              <label
+                >{{ t('sku')
+                }}<select formControlName="variantId" required>
+                  <option value="">{{ t('choose') }}</option>
+                  @for (variant of pickerVariants(); track variant.id) {
+                    <option [value]="variant.id">
+                      {{ variant.sku }} — {{ variant.productName }} / {{ variant.color }}
+                    </option>
+                  }
+                </select></label
+              >
+              @if (stockMode() === 'opening') {
+                <label
+                  >{{ t('quantity')
+                  }}<input
+                    type="number"
+                    formControlName="quantity"
+                    min="0"
+                    max="1000000"
+                    step="1"
+                    required /></label
+                ><label
+                  >{{ t('cost')
+                  }}<input formControlName="unitCost" inputmode="decimal" dir="ltr" /><small>{{
+                    t('unknownCost')
+                  }}</small></label
+                >
+              } @else {
+                <label
+                  >{{ t('delta')
+                  }}<input
+                    type="number"
+                    formControlName="delta"
+                    min="-1000000"
+                    max="1000000"
+                    step="1"
+                    required
+                /></label>
+              }
+              <label class="wide"
+                >{{ t('reason') }}<input formControlName="reason" maxlength="500" required
+              /></label>
+            </div>
+            @if (stockMode() === 'opening') {
+              <p class="hint">{{ t('openingHint') }}</p>
+            }
+            <p class="hint">{{ t('noValuation') }}</p>
+            <div class="form-actions">
+              <button type="submit" class="solid">{{ t('save') }}</button
+              ><button type="button" (click)="close()">{{ t('cancel') }}</button>
+            </div>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'transfer') {
+        <div class="model-search">
+          <label>{{ t('search') }}<input [formControl]="variantSearch" /></label
+          ><button type="button" (click)="searchVariants()">{{ t('apply') }}</button>
+          @if ((pickerPage() + 1) * 100 < pickerTotal()) {
+            <button type="button" (click)="searchVariants(true)">{{ t('next') }}</button>
+          }
+        </div>
+        <form [formGroup]="transferForm" (ngSubmit)="sendTransfer()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('source')
+                }}<select formControlName="sourceId" required>
+                  <option value="">{{ t('choose') }}</option>
+                  @for (site of branches(); track site.id) {
+                    <option [value]="site.id">{{ site.name }}</option>
+                  }
+                </select></label
+              >
+              <label
+                >{{ t('destination')
+                }}<select formControlName="destinationId" required>
+                  <option value="">{{ t('choose') }}</option>
+                  @for (site of destinations(); track site.id) {
+                    <option
+                      [value]="site.id"
+                      [disabled]="site.id === transferForm.controls.sourceId.value"
+                    >
+                      {{ site.name }}
+                    </option>
+                  }
+                </select></label
+              >
+              <label class="wide"
+                >{{ t('reason') }}<input formControlName="reason" maxlength="500" required
+              /></label>
+            </div>
+            <div formArrayName="items">
+              @for (line of transferForm.controls.items.controls; track line; let index = $index) {
+                <div class="transfer-line" [formGroupName]="index">
+                  <label
+                    >{{ t('sku')
+                    }}<select formControlName="variantId" required>
+                      <option value="">{{ t('choose') }}</option>
+                      @for (variant of pickerVariants(); track variant.id) {
+                        @if (variant.active) {
+                          <option [value]="variant.id">
+                            {{ variant.sku }} — {{ variant.color }} / {{ variant.ramGb ?? '—' }} /
+                            {{ variant.storageGb ?? '—' }}
+                          </option>
+                        }
+                      }
+                    </select></label
+                  ><label
+                    >{{ t('quantity')
+                    }}<input
+                      type="number"
+                      formControlName="quantity"
+                      min="1"
+                      max="1000000"
+                      required /></label
+                  ><button
+                    type="button"
+                    (click)="transferForm.controls.items.removeAt(index)"
+                    [disabled]="transferForm.controls.items.length === 1"
+                  >
+                    {{ t('remove') }}
+                  </button>
+                </div>
+              }
+            </div>
+            <button
+              type="button"
+              (click)="addTransferLine()"
+              [disabled]="transferForm.controls.items.length >= 100"
+            >
+              {{ t('addLine') }}
+            </button>
+            <div class="form-actions">
+              <button type="submit" class="solid">{{ t('dispatch') }}</button
+              ><button type="button" (click)="close()">{{ t('cancel') }}</button>
+            </div>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'receipt') {
+        <form [formGroup]="receiptForm" (ngSubmit)="saveReceipt()">
+          <fieldset [disabled]="saving()">
+            <label
+              >{{ t('reason') }}<input formControlName="reason" maxlength="500" required
+            /></label>
+            <div formArrayName="items">
+              @for (line of receiptForm.controls.items.controls; track line; let index = $index) {
+                <div class="receipt-line" [formGroupName]="index">
+                  <span>{{ lineLabel(line.controls.variantId.value!) }}</span
+                  ><label
+                    >{{ t('quantity')
+                    }}<input type="number" formControlName="quantity" min="0" step="1" required
+                  /></label>
+                </div>
+              }
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="solid">
+                {{ t(loss() ? 'resolveLoss' : 'receive') }}</button
+              ><button type="button" (click)="close()">{{ t('cancel') }}</button>
+            </div>
+          </fieldset>
+        </form>
+      }
+    </section>
+  }
+  @if (loading()) {
+    <p class="loading" role="status">{{ t('loading') }}</p>
+  } @else if (error()) {
+    <div class="error" role="alert">
+      <p>{{ t(error()!) }}</p>
+      <button type="button" (click)="load()">{{ t('retry') }}</button>
+      @if (error() === 'sessionExpired') {
+        <a href="/oauth2/authorization/rh">{{ lang.t('signin') }}</a>
+      }
+    </div>
+  } @else {
+    @if (tab() === 'catalog') {
+      @if (owner() && products().length) {
+        <details class="models">
+          <summary>{{ t('models') }} · {{ modelTotal() }}</summary>
+          <div class="model-search">
+            <label>{{ t('filterProducts') }}<input [formControl]="modelSearch" /></label
+            ><button type="button" (click)="searchModels()">{{ t('apply') }}</button>
+          </div>
+          <ul>
+            @for (product of products(); track product.id) {
+              <li>
+                <span
+                  ><strong>{{ product.brand }} — {{ product.name }}</strong
+                  ><small
+                    >{{ t(product.category) }} ·
+                    {{ t(product.active ? 'active' : 'inactive') }}</small
+                  ></span
+                ><button type="button" (click)="openProduct(product)">{{ t('edit') }}</button>
+              </li>
+            }
+          </ul>
+          @if (products().length < modelTotal()) {
+            <button type="button" (click)="searchModels(true)">{{ t('moreModels') }}</button>
+          }
+        </details>
+      }
+      <div class="table-scroll">
+        <table>
+          <caption>
+            {{
+              t('variants')
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('sku') }}</th>
+              <th scope="col">{{ t('product') }}</th>
+              <th scope="col">{{ t('color') }}</th>
+              <th scope="col">{{ t('ram') }}</th>
+              <th scope="col">{{ t('storage') }}</th>
+              <th scope="col">{{ t('wholesale') }}</th>
+              <th scope="col">{{ t('retail') }}</th>
+              <th scope="col">{{ t('status') }}</th>
+              @if (owner()) {
+                <th scope="col">{{ t('actions') }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (v of variants().items; track v.id) {
+              <tr>
+                <th scope="row" class="sku">{{ v.sku }}</th>
+                <td>
+                  <strong>{{ v.brand }} {{ v.productName }}</strong
+                  ><small>{{ t(v.category === 'PHONE' ? 'PHONE' : 'ACCESSORY') }}</small>
+                </td>
+                <td>{{ v.color }}</td>
+                <td>{{ v.ramGb ?? '—' }}</td>
+                <td>{{ v.storageGb ?? '—' }}</td>
+                <td>{{ price(v.wholesalePrice) }}</td>
+                <td>{{ price(v.retailPrice) }}</td>
+                <td>
+                  <span class="badge" [class.muted]="!v.active">{{
+                    t(v.active ? 'active' : 'inactive')
+                  }}</span>
+                </td>
+                @if (owner()) {
+                  <td class="row-actions">
+                    <button type="button" (click)="openVariant(v)">{{ t('edit') }}</button
+                    ><button type="button" (click)="toggleVariant(v)" [disabled]="saving()">
+                      {{ t(v.active ? 'archive' : 'restore') }}
+                    </button>
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="owner() ? 9 : 8">{{ t('empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (tab() === 'stock') {
+      @if (owner()) {
+        <div class="toolbar stock-toolbar" data-testid="stock-write">
+          <button type="button" class="solid" (click)="openStock('opening')">
+            {{ t('opening') }}</button
+          ><button type="button" (click)="openStock('adjustment')">{{ t('adjustment') }}</button>
+        </div>
+      }
+      <div class="table-scroll">
+        <table>
+          <caption>
+            {{
+              t('stock')
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('sku') }}</th>
+              <th scope="col">{{ t('site') }}</th>
+              <th scope="col">{{ t('available') }}</th>
+              <th scope="col">{{ t('transit') }}</th>
+              <th scope="col">{{ t('incoming') }}</th>
+              <th scope="col">{{ t('minimum') }}</th>
+              <th scope="col">{{ t('actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of balances().items; track row.branchId + row.variant.id) {
+              <tr [class.low]="row.lowStock">
+                <th scope="row" class="sku">
+                  {{ row.variant.sku
+                  }}<small
+                    >{{ row.variant.productName }} · {{ row.variant.color }} ·
+                    {{ row.variant.ramGb ?? '—' }} / {{ row.variant.storageGb ?? '—' }}</small
+                  >
+                </th>
+                <td>{{ siteName(row.branchId) }}</td>
+                <td>
+                  <strong>{{ row.initialized ? row.quantity : '—' }}</strong>
+                  @if (!row.initialized) {
+                    <small>{{ t('notInitialized') }}</small>
+                  }
+                  @if (row.lowStock) {
+                    <small class="warning">{{ t('lowStock') }}</small>
+                  }
+                </td>
+                <td>{{ row.inTransit }}</td>
+                <td>{{ row.incoming }}</td>
+                <td>{{ row.variant.minimumStock }}</td>
+                <td class="row-actions">
+                  <button type="button" (click)="showHistory(row)">{{ t('history') }}</button>
+                  @if (owner()) {
+                    <button
+                      type="button"
+                      (click)="openStock(row.initialized ? 'adjustment' : 'opening', row)"
+                    >
+                      {{ t(row.initialized ? 'adjustment' : 'opening') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">{{ t('empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (tab() === 'transfers') {
+      @if (manager()) {
+        <div class="toolbar stock-toolbar">
+          <button type="button" class="solid" (click)="openTransfer()">
+            {{ t('newTransfer') }}
+          </button>
+        </div>
+      }
+      <div class="transfer-list">
+        @for (transfer of transfers().items; track transfer.id) {
+          <article class="transfer-card">
+            <header>
+              <div>
+                <strong>{{ transfer.sourceName }} → {{ transfer.destinationName }}</strong
+                ><small>{{ date(transfer.createdAt) }} · {{ transfer.id.slice(0, 8) }}</small>
+              </div>
+              <span class="badge">{{ state(transfer.status) }}</span>
+            </header>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">{{ t('sku') }}</th>
+                    <th scope="col">{{ t('sent') }}</th>
+                    <th scope="col">{{ t('received') }}</th>
+                    <th scope="col">{{ t('lost') }}</th>
+                    <th scope="col">{{ t('remaining') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (line of transfer.items; track line.variantId) {
+                    <tr>
+                      <th scope="row">
+                        {{ line.sku }}<small>{{ line.label }}</small>
+                      </th>
+                      <td>{{ line.quantity }}</td>
+                      <td>{{ line.received }}</td>
+                      <td>{{ line.lost }}</td>
+                      <td>{{ line.remaining }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="row-actions">
+              @if (canReceive(transfer)) {
+                <button type="button" (click)="openReceipt(transfer)">{{ t('receive') }}</button>
+              }
+              @if (owner()) {
+                @if (transfer.status === 'OPEN' || transfer.status === 'PARTIAL') {
+                  <button type="button" (click)="openReceipt(transfer, true)">
+                    {{ t('resolveLoss') }}
+                  </button>
+                }
+              }
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">{{ t('empty') }}</p>
+        }
+      </div>
+    } @else {
+      @if (historyVariant()) {
+        <button type="button" (click)="showHistory()">{{ t('historyAll') }}</button>
+      }
+      <div class="table-scroll">
+        <table>
+          <caption>
+            {{
+              t('history')
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('date') }}</th>
+              <th scope="col">{{ t('sku') }}</th>
+              <th scope="col">{{ t('site') }}</th>
+              <th scope="col">{{ t('status') }}</th>
+              <th scope="col">{{ t('bucket') }}</th>
+              <th scope="col">{{ t('delta') }}</th>
+              <th scope="col">{{ t('quantityAfter') }}</th>
+              <th scope="col">{{ t('reason') }}</th>
+              @if (owner()) {
+                <th scope="col">{{ t('cost') }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of movements().items; track m.entryId) {
+              <tr>
+                <td>{{ date(m.createdAt) }}</td>
+                <th scope="row" class="sku">
+                  {{ m.sku }}<small>{{ m.label }}</small>
+                </th>
+                <td>{{ siteName(m.branchId) }}</td>
+                <td>{{ state(m.kind) }}</td>
+                <td>{{ state(m.bucket) }}</td>
+                <td>{{ m.delta > 0 ? '+' : '' }}{{ m.delta }}</td>
+                <td>{{ m.quantityAfter }}</td>
+                <td>
+                  {{ m.reason }}<small>{{ t('actor') }}: {{ m.actor }}</small>
+                </td>
+                @if (owner()) {
+                  <td>{{ m.unitCost === undefined ? '—' : price(m.unitCost) }}</td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="owner() ? 9 : 8">{{ t('empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    <div class="pagination">
+      <span>{{ count() }} {{ t('total') }} · {{ t('page') }} {{ page() + 1 }}</span>
+      <div>
+        <button type="button" (click)="paginate(-1)" [disabled]="page() === 0">
+          {{ t('previous') }}</button
+        ><button type="button" (click)="paginate(1)" [disabled]="(page() + 1) * 20 >= count()">
+          {{ t('next') }}
+        </button>
+      </div>
+    </div>
+  }
+</section>

@@ -25,5 +25,12 @@ a {
   color: inherit;
 }
 
-@page { size: A4; margin: 16mm; }
-@media print { body { background: white; } }
+@page {
+  size: A4;
+  margin: 16mm;
+}
+@media print {
+  body {
+    background: white;
+  }
+}

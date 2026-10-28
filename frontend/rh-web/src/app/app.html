@@ -16,8 +16,12 @@
         <span class="nav-icon">▦</span>{{ lang.t('branches') }}
       </button>
       <div class="nav-divider"></div>
-      <button disabled [title]="lang.t('soon')">
-        <span class="nav-icon">▣</span>{{ lang.t('catalog') }}<span class="coming">—</span>
+      <button
+        [disabled]="!session().authenticated"
+        [class.selected]="view() === 'inventory'"
+        (click)="view.set('inventory')"
+      >
+        <span class="nav-icon">▣</span>{{ lang.t('catalog') }}
       </button>
       <button disabled [title]="lang.t('soon')">
         <span class="nav-icon">↗</span>{{ lang.t('sales') }}<span class="coming">—</span>
@@ -39,7 +43,12 @@
   <div class="main">
     <header class="topbar">
       <div class="breadcrumb">
-        RH <span>/</span> {{ lang.t(view() === 'overview' ? 'overview' : 'branches') }}
+        RH <span>/</span>
+        {{
+          lang.t(
+            view() === 'inventory' ? 'catalog' : view() === 'overview' ? 'overview' : 'branches'
+          )
+        }}
       </div>
       <div class="topbar-actions">
         <div class="language-switch" [attr.aria-label]="lang.t('language')">
@@ -74,7 +83,13 @@
       <div class="page-heading">
         <div>
           <span class="eyebrow">RH GESTION</span>
-          <h1>{{ lang.t(view() === 'overview' ? 'overview' : 'branches') }}</h1>
+          <h1>
+            {{
+              lang.t(
+                view() === 'inventory' ? 'catalog' : view() === 'overview' ? 'overview' : 'branches'
+              )
+            }}
+          </h1>
         </div>
         <span class="environment"><span></span>{{ lang.t('local') }}</span>
       </div>
@@ -144,55 +159,65 @@
             </article>
           </section>
         } @else {
-          @if (view() === 'overview') {
-            <div class="foundation-note">
-              <span class="note-symbol">↗</span>
-              <div>
-                <strong>{{ lang.t('foundation') }}</strong>
-                <p>{{ lang.t('foundationBody') }}</p>
-              </div>
-            </div>
-          }
-          <section class="network-section">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow"
-                  >RH / {{ branches().length.toString().padStart(2, '0') }}</span
-                >
-                <h2>{{ lang.t('network') }}</h2>
-                <p>{{ lang.t('networkNote') }}</p>
-              </div>
-              <button class="text-button print-button" (click)="print()">
-                {{ lang.t('print') }} ↗
-              </button>
-            </div>
-            @if (branches().length === 0) {
-              <div class="empty-state">{{ lang.t('empty') }}</div>
-            } @else {
-              <div class="branch-table" role="table" [attr.aria-label]="lang.t('branches')">
-                <div class="table-head" role="row">
-                  <span role="columnheader">{{ lang.t('reference') }}</span
-                  ><span role="columnheader">{{ lang.t('branches') }}</span
-                  ><span role="columnheader">{{ lang.t('type') }}</span
-                  ><span role="columnheader">{{ lang.t('status') }}</span>
+          @if (view() === 'inventory') {
+            <app-inventory
+              [branches]="branches()"
+              [owner]="session().roles.includes('OWNER')"
+              [manager]="
+                session().roles.includes('OWNER') || session().roles.includes('STOCK_MANAGER')
+              "
+            />
+          } @else {
+            @if (view() === 'overview') {
+              <div class="foundation-note">
+                <span class="note-symbol">↗</span>
+                <div>
+                  <strong>{{ lang.t('foundation') }}</strong>
+                  <p>{{ lang.t('foundationBody') }}</p>
                 </div>
-                @for (branch of branches(); track branch.id) {
-                  <div class="branch-row" role="row">
-                    <span class="branch-code" role="cell">{{ branch.code }}</span>
-                    <div class="branch-name" role="cell">
-                      <span class="branch-icon">{{ branch.type === 'DEPOT' ? '▣' : '▦' }}</span
-                      ><strong>{{ branch.name }}</strong>
-                    </div>
-                    <span class="type-label" role="cell">{{
-                      lang.t(branch.type === 'DEPOT' ? 'depot' : 'store')
-                    }}</span
-                    ><span class="active-status" role="cell"><i></i>{{ lang.t('active') }}</span>
-                  </div>
-                }
               </div>
             }
-          </section>
-          <div class="local-notice">{{ lang.t('localNote') }}</div>
+            <section class="network-section">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow"
+                    >RH / {{ branches().length.toString().padStart(2, '0') }}</span
+                  >
+                  <h2>{{ lang.t('network') }}</h2>
+                  <p>{{ lang.t('networkNote') }}</p>
+                </div>
+                <button class="text-button print-button" (click)="print()">
+                  {{ lang.t('print') }} ↗
+                </button>
+              </div>
+              @if (branches().length === 0) {
+                <div class="empty-state">{{ lang.t('empty') }}</div>
+              } @else {
+                <div class="branch-table" role="table" [attr.aria-label]="lang.t('branches')">
+                  <div class="table-head" role="row">
+                    <span role="columnheader">{{ lang.t('reference') }}</span
+                    ><span role="columnheader">{{ lang.t('branches') }}</span
+                    ><span role="columnheader">{{ lang.t('type') }}</span
+                    ><span role="columnheader">{{ lang.t('status') }}</span>
+                  </div>
+                  @for (branch of branches(); track branch.id) {
+                    <div class="branch-row" role="row">
+                      <span class="branch-code" role="cell">{{ branch.code }}</span>
+                      <div class="branch-name" role="cell">
+                        <span class="branch-icon">{{ branch.type === 'DEPOT' ? '▣' : '▦' }}</span
+                        ><strong>{{ branch.name }}</strong>
+                      </div>
+                      <span class="type-label" role="cell">{{
+                        lang.t(branch.type === 'DEPOT' ? 'depot' : 'store')
+                      }}</span
+                      ><span class="active-status" role="cell"><i></i>{{ lang.t('active') }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+            <div class="local-notice">{{ lang.t('localNote') }}</div>
+          }
         }
         <footer>
           <span>RH <strong>GESTION</strong></span

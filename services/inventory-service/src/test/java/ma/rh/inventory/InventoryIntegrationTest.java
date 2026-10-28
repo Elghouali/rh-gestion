@@ -98,18 +98,18 @@ class InventoryIntegrationTest {
  @Test void transferMovesThroughTransitAndSupportsPartialReceipts()throws Exception{
   var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,10),201);var t=transfer(v,4);
   assertThat(balance(depot,v,"SELLABLE")).isEqualTo(6);assertThat(balance(depot,v,"TRANSIT")).isEqualTo(4);assertThat(balance(shop,v,"SELLABLE")).isZero();
-  postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",cashier,receipt(v,2),201);
+  postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",owner,receipt(v,2),201);
   assertThat(balance(shop,v,"SELLABLE")).isEqualTo(2);assertThat(balance(depot,v,"TRANSIT")).isEqualTo(2);
  }
  @Test void sourceEmployeeCannotReceiveForDestination()throws Exception{
   var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",stock,receipt(v,2),403);
  }
  @Test void cannotReceiveMoreThanDispatched()throws Exception{
-  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",cashier,receipt(v,3),409);
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",owner,receipt(v,3),409);
  }
  @Test void receiptReplayDoesNotDuplicateStock()throws Exception{
   var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);String path="/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",key=UUID.randomUUID().toString();
-  command(path,cashier,receipt(v,1),key,201);command(path,cashier,receipt(v,1),key,201);assertThat(balance(shop,v,"SELLABLE")).isEqualTo(1);
+  command(path,owner,receipt(v,1),key,201);command(path,owner,receipt(v,1),key,201);assertThat(balance(shop,v,"SELLABLE")).isEqualTo(1);
  }
  @Test void ownerCanResolveTransitLoss()throws Exception{
   var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/losses",owner,receipt(v,2),201);assertThat(balance(depot,v,"TRANSIT")).isZero();
@@ -124,7 +124,7 @@ class InventoryIntegrationTest {
   assertThat(body).doesNotContain("unitCost").doesNotContain("70.00");
  }
  @Test void failedAdminLookupFailsClosed()throws Exception{
-  when(sites.allowed(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+  doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)).when(sites).allowed(any());
   mvc.perform(get("/api/v1/stock/balances").with(user(cashier))).andExpect(status().isServiceUnavailable());
  }
  @Test void concurrentTransfersCannotSpendSameLastUnit()throws Exception{
@@ -148,4 +148,56 @@ class InventoryIntegrationTest {
   var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,1),201);
   assertThatThrownBy(()->jdbc.sql("DELETE FROM stock_entries WHERE variant_id=:v").param("v",UUID.fromString(v.get("id").asText())).update()).isInstanceOf(Exception.class);
  }
-}
+ @Test void rejectsNullTransferLine()throws Exception{
+  postJson("/api/v1/stock/transfers",stock,Map.of("sourceId",depot,"destinationId",shop,"reason","Bad","items",Collections.singletonList(null)),400);
+ }
+ @Test void rejectsFractionalStockQuantity()throws Exception{
+  var v=variant();var data=new HashMap<>(opening(v,2));data.put("quantity",1.5);postJson("/api/v1/stock/openings",owner,data,400);
+ }
+ @Test void cashierCannotReceiveEvenAtAssignedShop()throws Exception{
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,3),201);var t=transfer(v,1);postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",cashier,receipt(v,1),403);
+ } @Test void searchableCatalogueAndScopedBalancesExposeConfirmedAndUnknownCounts()throws Exception{
+  var v=variant();String sku=v.get("sku").asText();
+  mvc.perform(get("/api/v1/catalog/products").param("q","RH Test").with(user(cashier))).andExpect(status().isOk()).andExpect(jsonPath("$.total").isNumber());
+  mvc.perform(get("/api/v1/catalog/variants").param("q",sku).with(user(cashier))).andExpect(status().isOk()).andExpect(jsonPath("$.items[0].sku").value(sku));
+  mvc.perform(get("/api/v1/stock/balances").param("q",sku).param("branchId",depot.toString()).with(user(owner))).andExpect(status().isOk()).andExpect(jsonPath("$.items[0].initialized").value(false));
+  postJson("/api/v1/stock/openings",owner,opening(v,1),201);
+  mvc.perform(get("/api/v1/stock/balances").param("q",sku).param("branchId",depot.toString()).with(user(owner))).andExpect(status().isOk()).andExpect(jsonPath("$.items[0].quantity").value(1)).andExpect(jsonPath("$.items[0].lowStock").value(true));
+ }
+ @Test void transferListAndDirectLookupRespectDestinationScope()throws Exception{
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);
+  mvc.perform(get("/api/v1/stock/transfers").with(user(cashier))).andExpect(status().isOk()).andExpect(jsonPath("$.total").isNumber());
+  mvc.perform(get("/api/v1/stock/transfers/"+t.get("id").asText()).with(user(cashier))).andExpect(status().isOk());
+  var hidden=postJson("/api/v1/stock/transfers",stock,Map.of("sourceId",depot,"destinationId",other,"reason","Another shop","items",List.of(Map.of("variantId",v.get("id").asText(),"quantity",1))),201);
+  mvc.perform(get("/api/v1/stock/transfers/"+hidden.get("id").asText()).with(user(cashier))).andExpect(status().isForbidden());
+ }
+ @Test void canArchiveAndReceiveExistingTransitWithoutRewritingHistory()throws Exception{
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,4),201);var t=transfer(v,2);
+  var update=Map.of("sku",v.get("sku").asText(),"color","Noir","ramGb",8,"storageGb",256,"wholesalePrice","100","retailPrice","120","minimumStock",2,"active",false,"version",0);
+  mvc.perform(put("/api/v1/catalog/variants/"+v.get("id").asText()).with(user(owner)).header("Idempotency-Key",UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(update))).andExpect(status().isOk());
+  postJson("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts",owner,receipt(v,2),201);assertThat(balance(shop,v,"SELLABLE")).isEqualTo(2);
+ }
+ @Test void usedVariantIdentityCannotChange()throws Exception{
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,1),201);
+  var update=Map.of("sku",v.get("sku").asText(),"color","Blanc","ramGb",8,"storageGb",256,"wholesalePrice","100","retailPrice","120","minimumStock",2,"active",true,"version",0);
+  mvc.perform(put("/api/v1/catalog/variants/"+v.get("id").asText()).with(user(owner)).header("Idempotency-Key",UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(update))).andExpect(status().isConflict());
+ }
+ @Test void modelEditIsVersionedAndArchivingPreservesVariants()throws Exception{
+  var v=variant();var update=Map.of("name","Renamed "+UUID.randomUUID(),"brand","RH Test","active",false,"version",0);
+  mvc.perform(put("/api/v1/catalog/products/"+v.get("productId").asText()).with(user(owner)).header("Idempotency-Key",UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(update))).andExpect(status().isOk());
+  mvc.perform(get("/api/v1/catalog/variants").param("q",v.get("sku").asText()).with(user(owner))).andExpect(status().isOk()).andExpect(jsonPath("$.items[0].active").value(false));
+ }
+ @Test void multiLineTransferRollsBackEveryLineOnInsufficientStock()throws Exception{
+  var a=variant();var b=variant();postJson("/api/v1/stock/openings",owner,opening(a,3),201);
+  long entries=jdbc.sql("SELECT count(*) FROM stock_entries").query(Long.class).single();
+  postJson("/api/v1/stock/transfers",stock,Map.of("sourceId",depot,"destinationId",shop,"reason","Batch","items",List.of(Map.of("variantId",a.get("id").asText(),"quantity",2),Map.of("variantId",b.get("id").asText(),"quantity",1))),409);
+  assertThat(balance(depot,a,"SELLABLE")).isEqualTo(3);assertThat(jdbc.sql("SELECT count(*) FROM stock_entries").query(Long.class).single()).isEqualTo(entries);
+ }
+ @Test void twoReceiptsCannotConsumeSameRemainder()throws Exception{
+  var v=variant();postJson("/api/v1/stock/openings",owner,opening(v,2),201);var t=transfer(v,2);
+  try(var executor=Executors.newFixedThreadPool(2)){
+   Callable<Integer> receive=()->mvc.perform(post("/api/v1/stock/transfers/"+t.get("id").asText()+"/receipts").with(user(owner)).header("Idempotency-Key",UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(receipt(v,2)))).andReturn().getResponse().getStatus();
+   var a=executor.submit(receive);var b=executor.submit(receive);assertThat(List.of(a.get(15,TimeUnit.SECONDS),b.get(15,TimeUnit.SECONDS))).containsExactlyInAnyOrder(201,409);
+  }
+  assertThat(balance(shop,v,"SELLABLE")).isEqualTo(2);assertThat(balance(depot,v,"TRANSIT")).isZero();
+ }}

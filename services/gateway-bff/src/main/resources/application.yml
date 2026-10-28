@@ -18,6 +18,7 @@ rh:
     client-secret: ${OIDC_CLIENT_SECRET}
   services:
     administration: ${ADMINISTRATION_URL:http://localhost:8081}
+    inventory: ${INVENTORY_URL:http://localhost:8082}
 management:
   endpoints:
     web:

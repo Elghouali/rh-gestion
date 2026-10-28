@@ -33,4 +33,4 @@ public class BranchQueryService {
         return authentication.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_OWNER"));
     }
-}
+public List<Branch> directory(Authentication authentication) { if(authentication.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_OWNER") || a.getAuthority().equals("ROLE_STOCK_MANAGER"))) throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Directory access denied"); return repository.findAll(); }}

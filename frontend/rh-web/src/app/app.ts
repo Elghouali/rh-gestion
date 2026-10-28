@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 import { LanguageService } from './core/language.service';
+import { InventoryComponent } from './features/inventory/inventory';
 interface SessionInfo {
   authenticated: boolean;
   displayName: string;
@@ -18,7 +19,12 @@ interface Branch {
   name: string;
   type: 'DEPOT' | 'STORE';
 }
-@Component({ selector: 'app-root', imports: [], templateUrl: './app.html', styleUrl: './app.scss' })
+@Component({
+  selector: 'app-root',
+  imports: [InventoryComponent],
+  templateUrl: './app.html',
+  styleUrl: './app.scss',
+})
 export class App implements OnInit {
   readonly lang = inject(LanguageService);
   private readonly http = inject(HttpClient);
@@ -27,7 +33,7 @@ export class App implements OnInit {
   readonly session = signal<SessionInfo>({ authenticated: false, displayName: '', roles: [] });
   readonly csrf = signal<CsrfInfo | null>(null);
   readonly branches = signal<Branch[]>([]);
-  readonly view = signal<'overview' | 'branches'>('overview');
+  readonly view = signal<'overview' | 'branches' | 'inventory'>('overview');
   ngOnInit() {
     this.load();
   }
