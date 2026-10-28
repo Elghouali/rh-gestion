@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: RH Administration
+  version: 0.1.0
+paths:
+  /api/v1/branches:
+    get:
+      summary: Établissements accessibles au compte connecté
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Liste filtrée côté serveur
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Branch'
+        '401':
+          description: Authentification absente ou jeton invalide
+        '403':
+          description: Rôle métier absent
+  /api/v1/branches/{id}:
+    get:
+      summary: Établissement autorisé
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Établissement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Branch' }
+        '400':
+          description: Identifiant mal formé
+        '401':
+          description: Non authentifié
+        '403':
+          description: Établissement inaccessible
+        '404':
+          description: Établissement inexistant pour le propriétaire
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Branch:
+      type: object
+      required: [id, code, name, type]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [DEPOT, STORE] }

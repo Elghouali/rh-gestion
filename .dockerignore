@@ -1,0 +1,9 @@
+.git
+.env
+.local
+**/node_modules
+**/.angular
+**/test-results
+**/playwright-report
+**/src
+**/coverage

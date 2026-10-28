@@ -1,0 +1,29 @@
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: none
+  reactive:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${COOKIE_SECURE:false}
+      timeout: 30m
+spring:
+  application:
+    name: gateway-bff
+rh:
+  oidc:
+    public-url: ${OIDC_PUBLIC_URL:http://localhost:8180}
+    internal-url: ${OIDC_INTERNAL_URL:http://localhost:8180}
+    client-secret: ${OIDC_CLIENT_SECRET}
+  services:
+    administration: ${ADMINISTRATION_URL:http://localhost:8081}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

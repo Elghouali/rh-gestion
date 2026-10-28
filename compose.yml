@@ -1,0 +1,112 @@
+name: rh-gestion
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rh_bootstrap
+      POSTGRES_PASSWORD: ${RH_DB_ROOT_PASSWORD:?Run tools/init-local.ps1}
+      RH_ADMIN_DB_PASSWORD: ${RH_ADMIN_DB_PASSWORD:?Run tools/init-local.ps1}
+      RH_IDENTITY_DB_PASSWORD: ${RH_IDENTITY_DB_PASSWORD:?Run tools/init-local.ps1}
+    volumes:
+      - rh-postgres:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rh_bootstrap"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/rh_identity
+      KC_DB_USERNAME: rh_identity
+      KC_DB_PASSWORD: ${RH_IDENTITY_DB_PASSWORD}
+      KC_HOSTNAME: http://localhost:8180
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: rh-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${RH_KEYCLOAK_ADMIN_PASSWORD:?Run tools/init-local.ps1}
+      RH_OIDC_CLIENT_SECRET: ${RH_OIDC_CLIENT_SECRET}
+      RH_OWNER_PASSWORD: ${RH_OWNER_PASSWORD}
+      RH_CASHIER_PASSWORD: ${RH_CASHIER_PASSWORD}
+      RH_STOCK_PASSWORD: ${RH_STOCK_PASSWORD}
+    ports: ["127.0.0.1:8180:8080"]
+    volumes: ["./infra/keycloak/rh-realm.json:/opt/keycloak/data/import/rh-realm.json:ro"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/localhost/9000; printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3; grep -q '200' <&3"]
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+  administration:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        JAR_FILE: services/administration-service/target/administration-service-0.1.0-SNAPSHOT.jar
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://postgres:5432/rh_admin
+      DB_USER: rh_admin
+      DB_PASSWORD: ${RH_ADMIN_DB_PASSWORD}
+      OIDC_ISSUER: http://localhost:8180/realms/rh
+      OIDC_JWKS: http://keycloak:8080/realms/rh/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
+  gateway:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        JAR_FILE: services/gateway-bff/target/gateway-bff-0.1.0-SNAPSHOT.jar
+    environment:
+      OIDC_PUBLIC_URL: http://localhost:8180
+      OIDC_INTERNAL_URL: http://keycloak:8080
+      OIDC_CLIENT_SECRET: ${RH_OIDC_CLIENT_SECRET}
+      ADMINISTRATION_URL: http://administration:8081
+    depends_on:
+      administration:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+    ports: ["127.0.0.1:4300:80"]
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    profiles: ["messaging"]
+    environment:
+      RABBITMQ_DEFAULT_USER: rh_events
+      RABBITMQ_DEFAULT_PASS: ${RH_RABBIT_PASSWORD}
+    ports: ["127.0.0.1:15672:15672"]
+    volumes: ["rh-rabbitmq:/var/lib/rabbitmq"]
+volumes:
+  rh-postgres:
+  rh-rabbitmq:

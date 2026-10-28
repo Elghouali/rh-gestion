@@ -1,1 +1,29 @@
-/* You can add global styles to this file, and also import other style files */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #f8faf4;
+  color: #20372d;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #b1c688;
+  outline-offset: 4px;
+}
+html[dir='rtl'] body {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+a {
+  color: inherit;
+}
+
+@page { size: A4; margin: 16mm; }
+@media print { body { background: white; } }

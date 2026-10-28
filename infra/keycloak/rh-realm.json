@@ -1,0 +1,137 @@
+{
+  "realm": "rh",
+  "enabled": true,
+  "displayName": "RH Gestion",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "sslRequired": "external",
+  "bruteForceProtected": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "fr",
+    "ar",
+    "en"
+  ],
+  "defaultLocale": "fr",
+  "roles": {
+    "realm": [
+      {
+        "name": "OWNER"
+      },
+      {
+        "name": "CASHIER"
+      },
+      {
+        "name": "STOCK_MANAGER"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "rh-bff",
+      "name": "RH Gestion",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${RH_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4300/login/oauth2/code/rh"
+      ],
+      "webOrigins": [
+        "http://localhost:4300"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:4300/",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "rh-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "rh-services",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "rh-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "20000000-0000-0000-0000-000000000001",
+      "username": "rachid.owner",
+      "firstName": "Rachid",
+      "lastName": "Hanaoui",
+      "email": "rachid.owner@example.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "OWNER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${RH_OWNER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "20000000-0000-0000-0000-000000000002",
+      "username": "ibrahim",
+      "firstName": "Ibrahim",
+      "lastName": "RH",
+      "email": "ibrahim@example.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "CASHIER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${RH_CASHIER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "20000000-0000-0000-0000-000000000003",
+      "username": "rachid.stock",
+      "firstName": "Rachid",
+      "lastName": "Stock",
+      "email": "rachid.stock@example.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "STOCK_MANAGER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${RH_STOCK_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
