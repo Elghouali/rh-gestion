@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.*;
@@ -28,7 +29,7 @@ class PurchasingIntegrationTest {
  @Container static PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void props(DynamicPropertyRegistry r){r.add("spring.datasource.url",postgres::getJdbcUrl);r.add("spring.datasource.username",postgres::getUsername);r.add("spring.datasource.password",postgres::getPassword);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired JdbcClient jdbc;
- @MockitoBean JwtDecoder decoder; @MockitoBean SiteAccess sites; @MockitoBean SupplierAccess suppliers;
+ @MockitoBean JwtDecoder decoder; @MockitoBean SiteAccess sites; @MockitoBean SupplierAccess suppliers; @MockitoSpyBean Catalogue catalogue;
  final UUID depot=UUID.fromString("10000000-0000-0000-0000-000000000001"),shop=UUID.fromString("10000000-0000-0000-0000-000000000002"),supplier=UUID.fromString("20000000-0000-0000-0000-000000000001");
  @BeforeEach void setup(){
   when(sites.allowed(any())).thenAnswer(i->((Jwt)i.getArgument(0)).getSubject().equals("owner")?List.of(new Site(depot,"DEPOT","Dépôt","DEPOT"),new Site(shop,"M01","Shop","STORE")):List.of(new Site(depot,"DEPOT","Dépôt","DEPOT")));
@@ -59,4 +60,12 @@ class PurchasingIntegrationTest {
  @Test void unknownSupplierFailsClosed()throws Exception{doThrow(new InventoryProblem(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"FINANCE_UNAVAILABLE")).when(suppliers).get(any(),any());postJson("/api/v1/purchases","owner",orderInput(variant(),2),503);}
  @Test void cannotInspectAnUnrelatedReceipt()throws Exception{var v=variant();var a=order(v,2);var b=order(v,2);var r=postJson(path(a)+"/receipts","stock",receipt(v,1),201);postJson(path(b)+"/receipts/"+r.get("id").asText()+"/inspections","stock",inspection(v,1,0),404);}
  @Test void concurrentReceiptOfLastUnitsHasSingleWinner()throws Exception{var v=variant();var o=order(v,2);var pool=Executors.newFixedThreadPool(2);try{Callable<Integer> action=()->mvc.perform(post(path(o)+"/receipts").with(user("stock")).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(receipt(v,2)))).andReturn().getResponse().getStatus();var a=pool.submit(action);var b=pool.submit(action);assertThat(List.of(a.get(20,TimeUnit.SECONDS),b.get(20,TimeUnit.SECONDS))).containsExactlyInAnyOrder(201,409);assertThat(balance(v,"QUARANTINE")).isEqualTo(2);}finally{pool.shutdownNow();}}
+ @Test void managerCannotReleaseQuarantineWithoutOwnerApproval()throws Exception{var v=variant();var o=order(v,2);var r=postJson(path(o)+"/receipts","stock",receipt(v,2),201);postJson(path(o)+"/receipts/"+r.get("id").asText()+"/inspections","stock",inspection(v,2,0),403);assertThat(balance(v,"SELLABLE")).isZero();}
+ @Test void orderedVariantIdentityIsFrozenBeforeFirstReceipt()throws Exception{var v=variant();order(v,2);var body=Map.of("sku",v.get("sku").asText(),"color","Bleu","wholesalePrice","100","retailPrice","120","minimumStock",0,"active",true,"version",0);mvc.perform(put("/api/v1/catalog/variants/"+v.get("id").asText()).with(user("owner")).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("IDENTITY_LOCKED"));}
+ @Test void purchaseUsesTransferCompatibleLexicographicVariantLockOrder()throws Exception{
+  var a=variant();var b=variant();UUID low=UUID.fromString("10000000-0000-0000-0000-000000000001"),high=UUID.fromString("f0000000-0000-0000-0000-000000000001");
+  jdbc.sql("UPDATE product_variants SET id=:new WHERE id=:old").param("new",low).param("old",UUID.fromString(a.get("id").asText())).update();jdbc.sql("UPDATE product_variants SET id=:new WHERE id=:old").param("new",high).param("old",UUID.fromString(b.get("id").asText())).update();clearInvocations(catalogue);
+  var in=Map.of("supplierId",supplier,"branchId",depot,"reference","LOCK-"+UUID.randomUUID(),"note","Ordering test","items",List.of(Map.of("variantId",high,"quantity",1,"unitCost","70"),Map.of("variantId",low,"quantity",1,"unitCost","70")));
+  postJson("/api/v1/purchases","owner",in,201);var ordered=inOrder(catalogue);ordered.verify(catalogue).lock(low);ordered.verify(catalogue).lock(high);
+ }
 }
