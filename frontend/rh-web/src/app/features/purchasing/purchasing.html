@@ -1,0 +1,421 @@
+<section class="inventory-workspace">
+  <div class="inventory-heading">
+    <div>
+      <span class="eyebrow">RH</span>
+      <h2>{{ t('title') }}</h2>
+    </div>
+    @if (owner()) {
+      <div class="toolbar">
+        <button
+          type="button"
+          data-testid="new-purchase"
+          class="solid"
+          (click)="openOrder()"
+          [disabled]="saving()"
+        >
+          {{ t('newOrder') }}</button
+        ><button type="button" (click)="openSupplier()" [disabled]="saving()">
+          {{ t('newSupplier') }}
+        </button>
+      </div>
+    }
+  </div>
+  <nav class="tabs">
+    <button
+      type="button"
+      [class.current]="tab() === 'orders'"
+      (click)="setTab('orders')"
+      [disabled]="saving()"
+    >
+      {{ t('orders') }}
+    </button>
+    @if (owner()) {
+      <button
+        type="button"
+        data-testid="suppliers-tab"
+        [class.current]="tab() === 'suppliers'"
+        (click)="setTab('suppliers')"
+        [disabled]="saving()"
+      >
+        {{ t('suppliers') }}
+      </button>
+    }
+  </nav>
+  <p class="hint">{{ t('quarantineHint') }}</p>
+  @if (saved()) {
+    <p class="success" role="status">{{ t('success') }}</p>
+  }
+  @if (error()) {
+    <p class="error" role="alert">{{ t(error()!) }}</p>
+  }
+  @if (editor()) {
+    <section class="editor">
+      <div class="editor-heading">
+        <h3>
+          {{
+            t(
+              editor() === 'supplier'
+                ? 'supplier'
+                : editor() === 'order'
+                  ? 'newOrder'
+                  : editor() === 'receipt'
+                    ? 'receive'
+                    : editor() === 'inspection'
+                      ? 'inspect'
+                      : 'close'
+            )
+          }}
+        </h3>
+        <button type="button" (click)="close()" [disabled]="saving()">{{ t('cancel') }}</button>
+      </div>
+      @if (editor() === 'supplier') {
+        <form [formGroup]="supplierForm" (ngSubmit)="saveSupplier()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('name') }}<input formControlName="name" maxlength="160" required
+              /></label>
+              <label
+                >{{ t('phone') }}<input formControlName="phone" maxlength="40" dir="ltr"
+              /></label>
+              @if (editingSupplier()) {
+                <label class="checkbox"
+                  ><input type="checkbox" formControlName="active" />{{ t('active') }}</label
+                >
+              }
+            </div>
+            <button type="submit" class="solid">{{ t('save') }}</button>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'order') {
+        <div class="model-search">
+          <label>{{ t('supplier') }}<input [formControl]="supplierQuery" /></label
+          ><button type="button" (click)="searchSuppliers()">{{ t('find') }}</button>
+          @if ((supplierPage() + 1) * 100 < supplierTotal()) {
+            <button type="button" (click)="searchSuppliers(true)">{{ t('more') }}</button>
+          }
+        </div>
+        <div class="model-search">
+          <label>{{ t('variants') }}<input [formControl]="variantQuery" /></label
+          ><button type="button" (click)="searchVariants()">{{ t('find') }}</button>
+          @if ((variantPage() + 1) * 100 < variantTotal()) {
+            <button type="button" (click)="searchVariants(true)">{{ t('more') }}</button>
+          }
+        </div>
+        <form [formGroup]="orderForm" (ngSubmit)="saveOrder()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('supplier')
+                }}<select formControlName="supplierId">
+                  <option value="">{{ t('choose') }}</option>
+                  @for (s of suppliers(); track s.id) {
+                    <option [value]="s.id" [disabled]="!s.active">
+                      {{ s.name }}{{ s.active ? '' : ' (' + t('archived') + ')' }}
+                    </option>
+                  }
+                </select></label
+              >
+              <label
+                >{{ t('site')
+                }}<select formControlName="branchId">
+                  <option value="">{{ t('choose') }}</option>
+                  @for (s of branches(); track s.id) {
+                    <option [value]="s.id">{{ s.name }}</option>
+                  }
+                </select></label
+              >
+              <label
+                >{{ t('reference')
+                }}<input formControlName="reference" maxlength="100" required /></label
+              ><label
+                >{{ t('note') }}<input formControlName="note" maxlength="500" required
+              /></label>
+            </div>
+            <div formArrayName="items">
+              @for (line of orderForm.controls.items.controls; track line; let index = $index) {
+                <div class="purchase-line" [formGroupName]="index">
+                  <label
+                    >{{ t('sku')
+                    }}<select formControlName="variantId">
+                      <option value="">{{ t('choose') }}</option>
+                      @for (v of variants(); track v.id) {
+                        <option [value]="v.id" [disabled]="!v.active">
+                          {{ v.sku }} · {{ v.productName }} · {{ v.color }} {{ v.ramGb ?? '' }} /
+                          {{ v.storageGb ?? '' }}
+                        </option>
+                      }
+                    </select></label
+                  >
+                  <label
+                    >{{ t('quantity')
+                    }}<input
+                      type="number"
+                      formControlName="quantity"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      required /></label
+                  ><label
+                    >{{ t('cost')
+                    }}<input formControlName="unitCost" inputmode="decimal" dir="ltr" required
+                  /></label>
+                  <button
+                    type="button"
+                    (click)="orderForm.controls.items.removeAt(index)"
+                    [disabled]="orderForm.controls.items.length === 1"
+                  >
+                    {{ t('remove') }}
+                  </button>
+                </div>
+              }
+            </div>
+            <button
+              type="button"
+              (click)="addLine()"
+              [disabled]="orderForm.controls.items.length >= 100"
+            >
+              {{ t('add') }}
+            </button>
+            <p class="hint">{{ t('knownCost') }}</p>
+            <button type="submit" class="solid">{{ t('order') }}</button>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'receipt') {
+        <form [formGroup]="receiptForm" (ngSubmit)="saveReceipt()">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >{{ t('deliveryRef')
+                }}<input formControlName="reference" maxlength="100" required /></label
+              ><label
+                >{{ t('reason') }}<input formControlName="reason" maxlength="500" required
+              /></label>
+            </div>
+            <div formArrayName="items">
+              @for (line of receiptForm.controls.items.controls; track line; let index = $index) {
+                <div class="receipt-line" [formGroupName]="index">
+                  <span>{{ label(line.controls.variantId.value) }}</span
+                  ><label
+                    >{{ t('quantity')
+                    }}<input type="number" formControlName="quantity" min="0" step="1" required
+                  /></label>
+                </div>
+              }
+            </div>
+            <button type="submit" class="solid">{{ t('receive') }}</button>
+          </fieldset>
+        </form>
+      } @else if (editor() === 'inspection') {
+        <p class="hint">{{ t('inspectionHint') }}</p>
+        <form [formGroup]="inspectionForm" (ngSubmit)="saveInspection()">
+          <fieldset [disabled]="saving()">
+            <label
+              >{{ t('reason') }}<input formControlName="reason" maxlength="500" required
+            /></label>
+            <div formArrayName="items">
+              @for (
+                line of inspectionForm.controls.items.controls;
+                track line;
+                let index = $index
+              ) {
+                <div class="purchase-line inspection-line" [formGroupName]="index">
+                  <span>{{ label(line.controls.variantId.value) }}</span
+                  ><label
+                    >{{ t('accepted')
+                    }}<input
+                      type="number"
+                      formControlName="accepted"
+                      min="0"
+                      step="1"
+                      required /></label
+                  ><label
+                    >{{ t('rejected')
+                    }}<input type="number" formControlName="rejected" min="0" step="1" required
+                  /></label>
+                </div>
+              }
+            </div>
+            <button type="submit" class="solid">{{ t('release') }}</button>
+          </fieldset>
+        </form>
+      } @else {
+        <p class="hint">{{ t('closeHint') }}</p>
+        <form [formGroup]="closeForm" (ngSubmit)="saveClose()">
+          <fieldset [disabled]="saving()">
+            <label
+              >{{ t('reason') }}<input formControlName="reason" maxlength="500" required /></label
+            ><button type="submit" class="solid">{{ t('close') }}</button>
+          </fieldset>
+        </form>
+      }
+    </section>
+  }
+  @if (loading()) {
+    <p role="status" class="loading">{{ t('loading') }}</p>
+  } @else if (loadError()) {
+    <div class="error" role="alert">
+      <p>{{ t('failed') }}</p>
+      <button type="button" (click)="load()">{{ t('find') }}</button>
+    </div>
+  } @else if (tab() === 'suppliers' && owner()) {
+    <div class="model-search">
+      <label>{{ t('supplier') }}<input [formControl]="supplierQuery" /></label
+      ><button type="button" (click)="searchSuppliers()">{{ t('find') }}</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <caption>
+          {{
+            t('suppliers')
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th>{{ t('name') }}</th>
+            <th>{{ t('phone') }}</th>
+            <th>{{ t('active') }}</th>
+            <th>{{ t('edit') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of suppliers(); track s.id) {
+            <tr>
+              <td>{{ s.name }}</td>
+              <td dir="ltr">{{ s.phone }}</td>
+              <td>{{ t(s.active ? 'active' : 'archived') }}</td>
+              <td>
+                <button type="button" (click)="openSupplier(s)" [disabled]="saving()">
+                  {{ t('edit') }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if ((supplierPage() + 1) * 100 < supplierTotal()) {
+      <button type="button" (click)="searchSuppliers(true)">{{ t('more') }}</button>
+    }
+  } @else {
+    <form class="filters" (submit)="$event.preventDefault(); search()">
+      <label class="search">{{ t('search') }}<input [formControl]="query" maxlength="100" /></label
+      ><button type="submit" [disabled]="saving()">{{ t('find') }}</button>
+    </form>
+    @for (order of orders(); track order.id) {
+      <article class="transfer-card purchase-card" [attr.data-order-id]="order.id">
+        <header>
+          <div>
+            <strong>{{ order.reference }}</strong>
+            <p>{{ order.supplierName }} · {{ order.branchName }}</p>
+            <small>{{ date(order.createdAt) }}</small>
+            <p>{{ order.note }}</p>
+          </div>
+          <span class="badge">{{ state(order.status) }}</span>
+        </header>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ t('sku') }}</th>
+                <th>{{ t('quantity') }}</th>
+                <th>{{ t('received') }}</th>
+                <th>{{ t('remaining') }}</th>
+                @if (owner()) {
+                  <th>{{ t('cost') }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of order.items; track line.variantId) {
+                <tr>
+                  <td>
+                    <strong>{{ line.sku }}</strong
+                    ><small>{{ line.label }}</small>
+                  </td>
+                  <td>{{ line.quantity }}</td>
+                  <td>{{ line.received }}</td>
+                  <td>{{ line.remaining }}</td>
+                  @if (owner()) {
+                    <td>{{ line.unitCost === undefined ? '—' : money(line.unitCost) }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="toolbar">
+          @if (hasRemaining(order)) {
+            <button type="button" (click)="openReceipt(order)" [disabled]="saving()">
+              {{ t('receive') }}
+            </button>
+            @if (owner()) {
+              <button type="button" (click)="openClose(order)" [disabled]="saving()">
+                {{ t('close') }}
+              </button>
+            }
+          }
+        </div>
+        <details class="receipts">
+          <summary>{{ t('history') }} · {{ order.receipts.length }}</summary>
+          @for (receipt of order.receipts; track receipt.id) {
+            <section class="delivery" [attr.data-receipt-id]="receipt.id">
+              <h4>{{ receipt.reference }}</h4>
+              <small>{{ date(receipt.createdAt) }} · {{ receipt.actor }}</small>
+              <p>{{ receipt.reason }}</p>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{{ t('sku') }}</th>
+                      <th>{{ t('received') }}</th>
+                      <th>{{ t('accepted') }}</th>
+                      <th>{{ t('rejected') }}</th>
+                      <th>{{ t('pending') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (line of receipt.items; track line.variantId) {
+                      <tr>
+                        <td>{{ line.sku }}</td>
+                        <td>{{ line.quantity }}</td>
+                        <td>{{ line.accepted }}</td>
+                        <td>{{ line.rejected }}</td>
+                        <td>{{ line.pending }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (owner() && hasPending(receipt)) {
+                <button
+                  type="button"
+                  (click)="openInspection(order, receipt)"
+                  [disabled]="saving()"
+                >
+                  {{ t('inspect') }}
+                </button>
+              }
+            </section>
+          } @empty {
+            <p>{{ t('notReceived') }}</p>
+          }
+        </details>
+      </article>
+    } @empty {
+      <p>{{ t('empty') }}</p>
+    }
+    <div class="pagination">
+      <button type="button" (click)="paginate(-1)" [disabled]="page() === 0 || saving()">
+        {{ t('previous') }}</button
+      ><span>{{ page() + 1 }} · {{ total() }}</span
+      ><button
+        type="button"
+        (click)="paginate(1)"
+        [disabled]="(page() + 1) * 20 >= total() || saving()"
+      >
+        {{ t('next') }}
+      </button>
+    </div>
+  }
+</section>

@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 import { LanguageService } from './core/language.service';
+import { PurchasingComponent } from './features/purchasing/purchasing';
 import { InventoryComponent } from './features/inventory/inventory';
 interface SessionInfo {
   authenticated: boolean;
@@ -21,7 +22,7 @@ interface Branch {
 }
 @Component({
   selector: 'app-root',
-  imports: [InventoryComponent],
+  imports: [InventoryComponent, PurchasingComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -33,7 +34,7 @@ export class App implements OnInit {
   readonly session = signal<SessionInfo>({ authenticated: false, displayName: '', roles: [] });
   readonly csrf = signal<CsrfInfo | null>(null);
   readonly branches = signal<Branch[]>([]);
-  readonly view = signal<'overview' | 'branches' | 'inventory'>('overview');
+  readonly view = signal<'overview' | 'branches' | 'inventory' | 'purchasing'>('overview');
   ngOnInit() {
     this.load();
   }

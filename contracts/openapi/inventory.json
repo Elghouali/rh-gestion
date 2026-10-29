@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RH Inventory API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Catalogue et stock interne. Accès navigateur par le BFF avec session HttpOnly et protection CSRF ; JWT issuer/audience vérifiés entre services. Pas d'API de vente publique. Les écritures sont atomiques et idempotentes. Coûts d'ouverture optionnels, aucune valorisation CUMP. Outbox persistée sans publication pour ce jalon."
   },
   "servers": [
@@ -407,7 +407,7 @@
     },
     "/catalog/variants/{id}": {
       "put": {
-        "summary": "OWNER : modifier prix/seuil/état ; identité verrouillée après mouvement",
+        "summary": "OWNER : modifier prix/seuil/état ; identité verrouillée après mouvement ou commande fournisseur",
         "operationId": "putVariantUpdate",
         "parameters": [
           {
@@ -1687,6 +1687,16 @@
           },
           "lowStock": {
             "type": "boolean"
+          },
+          "quarantine": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         },
         "required": [
@@ -1696,7 +1706,9 @@
           "inTransit",
           "incoming",
           "initialized",
-          "lowStock"
+          "lowStock",
+          "quarantine",
+          "rejected"
         ],
         "description": "Les quantités ne sont confirmées que si initialized=true. Pagination par variante : une variante produit une ligne par site autorisé ; total compte les variantes, pas les lignes."
       },
@@ -1827,7 +1839,7 @@
           },
           "bucket": {
             "type": "string",
-            "enum": ["SELLABLE", "TRANSIT"]
+            "enum": ["SELLABLE", "TRANSIT", "QUARANTINE", "REJECTED"]
           },
           "delta": {
             "type": "integer",

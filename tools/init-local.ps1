@@ -3,7 +3,7 @@ $root=Split-Path $PSScriptRoot -Parent
 $target=Join-Path $root '.env'
 $lines=[Collections.Generic.List[string]]::new()
 if(Test-Path -LiteralPath $target){foreach($line in [IO.File]::ReadAllLines($target)){$lines.Add($line)}}
-$names=@('RH_DB_ROOT_PASSWORD','RH_ADMIN_DB_PASSWORD','RH_IDENTITY_DB_PASSWORD','RH_INVENTORY_DB_PASSWORD','RH_KEYCLOAK_ADMIN_PASSWORD','RH_OIDC_CLIENT_SECRET','RH_OWNER_PASSWORD','RH_CASHIER_PASSWORD','RH_STOCK_PASSWORD','RH_RABBIT_PASSWORD')
+$names=@('RH_DB_ROOT_PASSWORD','RH_ADMIN_DB_PASSWORD','RH_IDENTITY_DB_PASSWORD','RH_INVENTORY_DB_PASSWORD','RH_FINANCE_DB_PASSWORD','RH_KEYCLOAK_ADMIN_PASSWORD','RH_OIDC_CLIENT_SECRET','RH_OWNER_PASSWORD','RH_CASHIER_PASSWORD','RH_STOCK_PASSWORD','RH_RABBIT_PASSWORD')
 $added=0
 foreach($name in $names){
  if(-not ($lines | Where-Object {$_ -match ('^'+[regex]::Escape($name)+'=')})){

@@ -47,7 +47,7 @@ public class StockService {
   List<StockRow> result=new ArrayList<>();
   for(var variant:variants.items())for(UUID site:scope){
    String balanceKey=site+"|"+variant.id()+"|SELLABLE";long qty=balances.getOrDefault(balanceKey,0L);boolean initialized=balances.containsKey(balanceKey);
-   result.add(new StockRow(site,variant,qty,balances.getOrDefault(site+"|"+variant.id()+"|TRANSIT",0L),incoming.getOrDefault(site+"|"+variant.id(),0L),initialized,initialized&&variant.active()&&variant.minimumStock()>0&&qty<variant.minimumStock()));
+   result.add(new StockRow(site,variant,qty,balances.getOrDefault(site+"|"+variant.id()+"|TRANSIT",0L),incoming.getOrDefault(site+"|"+variant.id(),0L),initialized,initialized&&variant.active()&&variant.minimumStock()>0&&qty<variant.minimumStock(),balances.getOrDefault(site+"|"+variant.id()+"|QUARANTINE",0L),balances.getOrDefault(site+"|"+variant.id()+"|REJECTED",0L)));
   }
   return new Page<>(result,page,size,variants.total());
  }

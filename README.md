@@ -85,7 +85,7 @@ Les données de démonstration ne se chargent qu'avec le profil local.
 Modifier .env après import initial ne change pas automatiquement les mots de passe déjà enregistrés dans PostgreSQL/Keycloak. Toute rotation doit être appliquée dans les services concernés, sans effacer les volumes.
 
 ## Prochaine étape
-Développer les achats et réceptions fournisseurs, puis les commandes et ventes. Voir docs/STATUS.md et docs/architecture/conception-v2.md.
+Développer les commandes et ventes, puis les flux financiers et retours fournisseurs. Voir docs/STATUS.md et docs/architecture/conception-v2.md.
 
 Sur certains JDK Windows, définir RH_JAVA_SOCKET_TMP dans .env vers un répertoire local existant au chemin court corrige la création des sockets AF_UNIX. Le lanceur transmet ce réglage uniquement aux tests, puis restaure JAVA_TOOL_OPTIONS.
 
@@ -101,3 +101,7 @@ Décisions : [ADR 002](docs/decisions/002-inventory.md). Contrat : [OpenAPI Inve
 
 Le stock non compté reste non initialisé. Le zéro doit être confirmé par comptage. Les coûts peuvent rester inconnus ; aucune valorisation comptable n'est calculée. Les transferts restent en transit jusqu'à réception (partielle possible). Un journal ne se modifie pas : les corrections sont de nouveaux mouvements.
 Le script start-local ajoute les secrets manquants et crée la base Inventory sur une installation existante via tools/ensure-inventory-db.ps1, sans supprimer les volumes. Les événements outbox sont persistés ; leur publication n'est pas encore implémentée.
+## Achats et réceptions fournisseurs
+Module livré : registre fournisseur dans Finance (base dédiée), commandes dans Inventory, réception physique en quarantaine, contrôle du propriétaire vers disponible/refusé et clôture du reliquat non reçu. Les coûts et contacts fournisseurs sont réservés au propriétaire ; un responsable réceptionne uniquement sur ses sites. Les écritures sont idempotentes et auditées.
+Guide : [purchasing.md](docs/guides/purchasing.md), [ADR 003](docs/decisions/003-purchasing.md), [OpenAPI](contracts/openapi/purchasing.json) et [recette](docs/acceptance/purchasing.md).
+Le lancement prépare désormais aussi rh_finance sans effacer les volumes ni les secrets existants. Sept services sont lancés. Aucune facture, dette, paiement ou valorisation n'est encore calculé. Les unités refusées attendent un futur traitement retour/remplacement fournisseur.

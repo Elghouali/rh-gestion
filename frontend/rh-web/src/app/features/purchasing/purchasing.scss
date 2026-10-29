@@ -1,0 +1,63 @@
+.purchase-line {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) 100px 150px auto;
+  gap: 12px;
+  align-items: end;
+  margin-block: 16px;
+}
+.inspection-line {
+  grid-template-columns: minmax(160px, 2fr) 1fr 1fr;
+}
+.purchase-card {
+  margin-block: 20px;
+}
+.purchase-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.purchase-card header p {
+  margin-block: 8px;
+}
+.receipts {
+  margin-block-start: 20px;
+  border-block-start: 1px solid #dce5d8;
+  padding-block-start: 14px;
+}
+.receipts summary {
+  cursor: pointer;
+}
+.delivery {
+  border: 1px solid #dce5d8;
+  border-radius: 8px;
+  padding: 16px;
+  margin-block: 14px;
+}
+.delivery h4 {
+  margin: 0 0 8px;
+}
+.purchase-card table small {
+  display: block;
+}
+.purchase-card .toolbar {
+  margin-block: 12px;
+}
+.pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-block: 20px;
+}
+@media (max-width: 800px) {
+  .purchase-line,
+  .inspection-line {
+    grid-template-columns: 1fr 1fr;
+  }
+  .purchase-line label:first-child {
+    grid-column: 1/-1;
+  }
+  .purchase-card header {
+    flex-wrap: wrap;
+  }
+}

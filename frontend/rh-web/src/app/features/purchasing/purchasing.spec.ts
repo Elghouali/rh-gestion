@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, HttpErrorResponse } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { vi } from 'vitest';
 import { PurchasingComponent } from './purchasing';
 import { InventoryApi } from '../inventory/inventory-api';
@@ -199,18 +199,147 @@ describe('Purchasing operator workflows', () => {
   });
   it('does not show an empty order list after a failed read', () => {
     const f = TestBed.createComponent(PurchasingComponent);
-    f.componentRef.setInput('branches', []); f.componentRef.setInput('owner', true); f.detectChanges();
-    for (const r of http.match(r => r.method === 'GET')) {
-      if (r.request.url.endsWith('/purchases')) r.flush('Down', {status:503,statusText:'Unavailable'});
-      else if (!r.cancelled) r.flush({items:[],page:0,size:100,total:0});
+    f.componentRef.setInput('branches', []);
+    f.componentRef.setInput('owner', true);
+    f.detectChanges();
+    for (const r of http.match((r) => r.method === 'GET')) {
+      if (r.request.url.endsWith('/purchases'))
+        r.flush('Down', { status: 503, statusText: 'Unavailable' });
+      else if (!r.cancelled) r.flush({ items: [], page: 0, size: 100, total: 0 });
     }
     f.detectChanges();
     expect(f.nativeElement.textContent).not.toContain('Aucune commande pour cette recherche.');
   });
   it('does not offer stock release to a manager or submit it through direct invocation', () => {
-    const f=setup(false),c=f.componentInstance;
-    const buttons=Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    expect(buttons.some(b=>b.textContent?.trim()===c.t('inspect'))).toBe(false);
-    c.openInspection(order,order.receipts[0]);c.inspectionForm.controls.reason.setValue('Checked');c.inspectionForm.controls.items.at(0).patchValue({accepted:3,rejected:0});c.saveInspection();expect(command).not.toHaveBeenCalled();
+    const f = setup(false),
+      c = f.componentInstance;
+    const buttons = Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    expect(buttons.some((b) => b.textContent?.trim() === c.t('inspect'))).toBe(false);
+    c.openInspection(order, order.receipts[0]);
+    c.inspectionForm.controls.reason.setValue('Checked');
+    c.inspectionForm.controls.items.at(0).patchValue({ accepted: 3, rejected: 0 });
+    c.saveInspection();
+    expect(command).not.toHaveBeenCalled();
+  });
+  it('creates a valid multi-line order with decimal-string cost', () => {
+    const f = setup(),
+      c = f.componentInstance;
+    c.openOrder();
+    flush();
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('[formControlName="unitCost"]')).not.toBeNull();
+    c.orderForm.patchValue({
+      supplierId: 's1',
+      branchId: 'depot',
+      reference: ' PO2 ',
+      note: ' Approved ',
+      items: [{ variantId: 'v1', quantity: 2, unitCost: '70,1250' }],
+    });
+    c.saveOrder();
+    expect(command).toHaveBeenCalledWith(
+      'POST',
+      '/api/v1/purchases',
+      expect.objectContaining({
+        reference: 'PO2',
+        note: 'Approved',
+        items: [{ variantId: 'v1', quantity: 2, unitCost: '70.1250' }],
+      }),
+    );
+    flush();
+  });
+  it('renders supplier edit, physical receipt and close forms with bound inputs', () => {
+    const f = setup(),
+      c = f.componentInstance;
+    c.setTab('suppliers');
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('Supplier');
+    c.openSupplier();
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('[formControlName="name"]')).not.toBeNull();
+    c.openSupplier({ id: 's1', name: 'Supplier', phone: '', active: true, version: 0 });
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('[formControlName="active"]')).not.toBeNull();
+    c.openReceipt(order);
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('[formControlName="quantity"]')).not.toBeNull();
+    c.openClose(order);
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain(c.t('closeHint'));
+    c.close();
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('.editor')).toBeNull();
+  });
+  it('validates fractional receipt, empty inspection and missing close reason', () => {
+    const c = setup().componentInstance;
+    c.openReceipt(order);
+    c.receiptForm.patchValue({
+      reference: 'BL',
+      reason: 'Count',
+      items: [{ variantId: 'v1', quantity: 1.5 }],
+    });
+    c.saveReceipt();
+    expect(command).not.toHaveBeenCalled();
+    c.openInspection(order, order.receipts[0]);
+    c.inspectionForm.controls.reason.setValue('Checked');
+    c.saveInspection();
+    expect(command).not.toHaveBeenCalled();
+    c.openClose(order);
+    c.saveClose();
+    expect(command).not.toHaveBeenCalled();
+    expect(c.error()).toBe('invalid');
+  });
+  it('searches and paginates pickers while retaining selected references', () => {
+    const f = setup(),
+      c = f.componentInstance;
+    c.openOrder();
+    flush();
+    c.orderForm.patchValue({ supplierId: 's1', items: [{ variantId: 'v1' }] });
+    c.searchSuppliers(true);
+    flush();
+    c.searchVariants(true);
+    flush();
+    expect(c.suppliers()[0].id).toBe('s1');
+    expect(c.variants()[0].id).toBe('v1');
+    c.searchSuppliers();
+    http
+      .expectOne((r) => r.url.endsWith('/suppliers'))
+      .flush('Down', { status: 503, statusText: 'Unavailable' });
+    expect(c.error()).toBe('failed');
+    c.searchSuppliers();
+    flush();
+    expect(c.error()).toBeNull();
+    c.searchVariants();
+    http
+      .expectOne((r) => r.url.endsWith('/variants'))
+      .flush('Down', { status: 503, statusText: 'Unavailable' });
+    expect(c.error()).toBe('failed');
+    c.searchVariants();
+    flush();
+    expect(c.error()).toBeNull();
+    c.paginate(1);
+    flush();
+    expect(c.page()).toBe(1);
+    c.search();
+    flush();
+    expect(c.page()).toBe(0);
+    c.addLine();
+    f.detectChanges();
+    expect(f.nativeElement.querySelectorAll('[formControlName="quantity"]').length).toBe(2);
+  });
+  it('blocks double submission and displays definitive errors without losing form data', () => {
+    const f = setup(),
+      c = f.componentInstance,
+      pending = new Subject();
+    command.mockReturnValue(pending);
+    c.openSupplier();
+    c.supplierForm.patchValue({ name: 'Supplier' });
+    c.saveSupplier();
+    c.saveSupplier();
+    c.close();
+    expect(command).toHaveBeenCalledTimes(1);
+    expect(c.editor()).toBe('supplier');
+    pending.error(new HttpErrorResponse({ status: 409 }));
+    expect(c.error()).toBe('failed');
+    expect(c.supplierForm.controls.name.value).toBe('Supplier');
   });
 });

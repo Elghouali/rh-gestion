@@ -18,6 +18,7 @@ spring:
           jwk-set-uri: ${OIDC_JWKS:http://localhost:8180/realms/rh/protocol/openid-connect/certs}
           audiences: rh-services
 rh:
+  finance-url: ${FINANCE_URL:http://localhost:8083}
   administration-url: ${ADMINISTRATION_URL:http://localhost:8081}
 management:
   endpoints:

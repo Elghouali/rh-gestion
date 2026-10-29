@@ -22,7 +22,7 @@ public final class Models {
  public record Receipt(@NotBlank @Size(max=500) String reason,@NotEmpty @Size(max=100) List<@NotNull @Valid ReceiptItem> items){}
  public record Operation(UUID id,String kind){}
  public record Page<T>(List<T> items,int page,int size,long total){}
- public record StockRow(UUID branchId,Variant variant,long quantity,long inTransit,long incoming,boolean initialized,boolean lowStock){}
+ public record StockRow(UUID branchId,Variant variant,long quantity,long inTransit,long incoming,boolean initialized,boolean lowStock,long quarantine,long rejected){}
  @JsonInclude(JsonInclude.Include.NON_NULL)
  public record MovementRow(UUID id,UUID entryId,String kind,String reason,String actor,String createdAt,UUID branchId,UUID variantId,String sku,String label,String bucket,long delta,long quantityAfter,BigDecimal unitCost,UUID transferId){}
  public record TransferLine(UUID variantId,String sku,String label,long quantity,long received,long lost,long remaining){}

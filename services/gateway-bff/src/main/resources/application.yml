@@ -19,6 +19,7 @@ rh:
   services:
     administration: ${ADMINISTRATION_URL:http://localhost:8081}
     inventory: ${INVENTORY_URL:http://localhost:8082}
+    finance: ${FINANCE_URL:http://localhost:8083}
 management:
   endpoints:
     web:

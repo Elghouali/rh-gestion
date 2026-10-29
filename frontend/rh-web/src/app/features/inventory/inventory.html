@@ -531,6 +531,8 @@
               <th scope="col">{{ t('available') }}</th>
               <th scope="col">{{ t('transit') }}</th>
               <th scope="col">{{ t('incoming') }}</th>
+              <th scope="col">{{ t('QUARANTINE') }}</th>
+              <th scope="col">{{ t('REJECTED') }}</th>
               <th scope="col">{{ t('minimum') }}</th>
               <th scope="col">{{ t('actions') }}</th>
             </tr>
@@ -557,6 +559,8 @@
                 </td>
                 <td>{{ row.inTransit }}</td>
                 <td>{{ row.incoming }}</td>
+                <td>{{ row.quarantine ?? 0 }}</td>
+                <td>{{ row.rejected ?? 0 }}</td>
                 <td>{{ row.variant.minimumStock }}</td>
                 <td class="row-actions">
                   <button type="button" (click)="showHistory(row)">{{ t('history') }}</button>
@@ -572,7 +576,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7">{{ t('empty') }}</td>
+                <td colspan="9">{{ t('empty') }}</td>
               </tr>
             }
           </tbody>

@@ -72,7 +72,7 @@ public class Catalogue {
    requirePhoneAttributes(old.category(),input.ramGb(),input.storageGb());
    String sku=sku(input.sku()),color=text(input.color());
    boolean identityChanged=!old.sku().equals(sku)||!old.color().equalsIgnoreCase(color)||!Objects.equals(old.ramGb(),input.ramGb())||!Objects.equals(old.storageGb(),input.storageGb());
-   if(identityChanged&&jdbc.sql("SELECT EXISTS(SELECT 1 FROM stock_entries WHERE variant_id=:id)").param("id",id).query(Boolean.class).single())throw InventoryProblem.conflict("IDENTITY_LOCKED");
+   if(identityChanged&&jdbc.sql("SELECT EXISTS(SELECT 1 FROM stock_entries WHERE variant_id=:id UNION ALL SELECT 1 FROM purchase_lines WHERE variant_id=:id)").param("id",id).query(Boolean.class).single())throw InventoryProblem.conflict("IDENTITY_LOCKED");
    int changed=jdbc.sql("UPDATE product_variants SET sku=:s,color=:c,ram_gb=:r,storage_gb=:t,wholesale_price=:w,retail_price=:d,minimum_stock=:m,active=:a,version=version+1 WHERE id=:id AND version=:v")
     .param("s",sku).param("c",color).param("r",input.ramGb()).param("t",input.storageGb()).param("w",input.wholesalePrice()).param("d",input.retailPrice()).param("m",input.minimumStock()).param("a",input.active()).param("id",id).param("v",input.version()).update();
    if(changed!=1)throw InventoryProblem.conflict("STALE_VERSION");

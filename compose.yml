@@ -7,11 +7,13 @@ services:
       POSTGRES_PASSWORD: ${RH_DB_ROOT_PASSWORD:?Run tools/init-local.ps1}
       RH_ADMIN_DB_PASSWORD: ${RH_ADMIN_DB_PASSWORD:?Run tools/init-local.ps1}
       RH_IDENTITY_DB_PASSWORD: ${RH_IDENTITY_DB_PASSWORD:?Run tools/init-local.ps1}
+      RH_FINANCE_DB_PASSWORD: ${RH_FINANCE_DB_PASSWORD:?Run tools/init-local.ps1}
       RH_INVENTORY_DB_PASSWORD: ${RH_INVENTORY_DB_PASSWORD:?Run tools/init-local.ps1}
     volumes:
       - rh-postgres:/var/lib/postgresql/data
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
       - ./infra/postgres/inventory.sql:/opt/rh/inventory.sql:ro
+      - ./infra/postgres/finance.sql:/opt/rh/finance.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rh_bootstrap"]
       interval: 5s
@@ -80,6 +82,7 @@ services:
       DB_PASSWORD: ${RH_INVENTORY_DB_PASSWORD:?Run tools/init-local.ps1}
       OIDC_ISSUER: http://localhost:8180/realms/rh
       OIDC_JWKS: http://keycloak:8080/realms/rh/protocol/openid-connect/certs
+      FINANCE_URL: http://finance:8083
       ADMINISTRATION_URL: http://administration:8081
     depends_on:
       postgres:
@@ -93,6 +96,29 @@ services:
       start_period: 30s
       retries: 20
 
+  finance:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        JAR_FILE: services/finance-service/target/finance-service-0.1.0-SNAPSHOT.jar
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/rh_finance
+      DB_USER: rh_finance
+      DB_PASSWORD: ${RH_FINANCE_DB_PASSWORD:?Run tools/init-local.ps1}
+      OIDC_ISSUER: http://localhost:8180/realms/rh
+      OIDC_JWKS: http://keycloak:8080/realms/rh/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8083/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
   gateway:
     build:
       context: .
@@ -103,6 +129,7 @@ services:
       OIDC_PUBLIC_URL: http://localhost:8180
       OIDC_INTERNAL_URL: http://keycloak:8080
       OIDC_CLIENT_SECRET: ${RH_OIDC_CLIENT_SECRET}
+      FINANCE_URL: http://finance:8083
       ADMINISTRATION_URL: http://administration:8081
       INVENTORY_URL: http://inventory:8082
     depends_on:

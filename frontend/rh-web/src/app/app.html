@@ -23,6 +23,14 @@
       >
         <span class="nav-icon">▣</span>{{ lang.t('catalog') }}
       </button>
+      @if (
+        session().authenticated &&
+        (session().roles.includes('OWNER') || session().roles.includes('STOCK_MANAGER'))
+      ) {
+        <button [class.selected]="view() === 'purchasing'" (click)="view.set('purchasing')">
+          <span class="nav-icon">↙</span>{{ lang.t('purchases') }}
+        </button>
+      }
       <button disabled [title]="lang.t('soon')">
         <span class="nav-icon">↗</span>{{ lang.t('sales') }}<span class="coming">—</span>
       </button>
@@ -46,7 +54,13 @@
         RH <span>/</span>
         {{
           lang.t(
-            view() === 'inventory' ? 'catalog' : view() === 'overview' ? 'overview' : 'branches'
+            view() === 'purchasing'
+              ? 'purchases'
+              : view() === 'inventory'
+                ? 'catalog'
+                : view() === 'overview'
+                  ? 'overview'
+                  : 'branches'
           )
         }}
       </div>
@@ -86,7 +100,13 @@
           <h1>
             {{
               lang.t(
-                view() === 'inventory' ? 'catalog' : view() === 'overview' ? 'overview' : 'branches'
+                view() === 'purchasing'
+                  ? 'purchases'
+                  : view() === 'inventory'
+                    ? 'catalog'
+                    : view() === 'overview'
+                      ? 'overview'
+                      : 'branches'
               )
             }}
           </h1>
@@ -159,7 +179,12 @@
             </article>
           </section>
         } @else {
-          @if (view() === 'inventory') {
+          @if (
+            view() === 'purchasing' &&
+            (session().roles.includes('OWNER') || session().roles.includes('STOCK_MANAGER'))
+          ) {
+            <app-purchasing [branches]="branches()" [owner]="session().roles.includes('OWNER')" />
+          } @else if (view() === 'inventory') {
             <app-inventory
               [branches]="branches()"
               [owner]="session().roles.includes('OWNER')"

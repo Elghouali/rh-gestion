@@ -1,0 +1,738 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RH Suppliers and Purchasing",
+    "version": "0.3.0",
+    "description": "Finance possède les fournisseurs, Inventory les achats/réceptions. UUID sans FK entre bases. Authentification navigateur par BFF HttpOnly/CSRF, JWT entre services. Toutes les écritures sont idempotentes et journalisées localement. CLOSED porte sur le reliquat non reçu. RECEIVED décrit la réception physique, pas une approbation qualité. Refus isolés dans REJECTED : retour/remplacement fournisseur reste à développer. Pas de facture, dette, paiement ou fiscalité dans ce contrat."
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/suppliers": {
+      "get": {
+        "summary": "OWNER : rechercher les fournisseurs",
+        "operationId": "get_suppliers",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 100 }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SupplierPage" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        }
+      },
+      "post": {
+        "summary": "OWNER : créer une identité fournisseur",
+        "operationId": "post_suppliers",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Supplier" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SupplierInput" }
+            }
+          }
+        }
+      }
+    },
+    "/suppliers/{id}": {
+      "get": {
+        "summary": "OWNER : lire un fournisseur",
+        "operationId": "get_suppliers_id_",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Supplier" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        }
+      },
+      "put": {
+        "summary": "OWNER : modifier/archiver avec version",
+        "operationId": "put_suppliers_id_",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Supplier" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SupplierUpdate" }
+            }
+          }
+        }
+      }
+    },
+    "/purchases": {
+      "get": {
+        "summary": "OWNER/STOCK_MANAGER : commandes de leurs sites",
+        "operationId": "get_purchases",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 100 }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PurchasePage" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        }
+      },
+      "post": {
+        "summary": "OWNER : commande immuable, sans mouvement de stock",
+        "operationId": "post_purchases",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Purchase" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PurchaseInput" }
+            }
+          }
+        }
+      }
+    },
+    "/purchases/{id}": {
+      "get": {
+        "summary": "OWNER/STOCK_MANAGER : détail limité au site de réception",
+        "operationId": "get_purchases_id_",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Purchase" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        }
+      }
+    },
+    "/purchases/{id}/receipts": {
+      "post": {
+        "summary": "OWNER/STOCK_MANAGER affecté : réception physique en QUARANTINE",
+        "operationId": "post_purchases_id_receipts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Delivery" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReceiptInput" }
+            }
+          }
+        }
+      }
+    },
+    "/purchases/{id}/receipts/{receiptId}/inspections": {
+      "post": {
+        "summary": "OWNER : QUARANTINE vers SELLABLE accepté ou REJECTED refusé",
+        "operationId": "post_purchases_id_receipts_receiptId_inspections",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Delivery" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InspectionInput" }
+            }
+          }
+        }
+      }
+    },
+    "/purchases/{id}/close": {
+      "post": {
+        "summary": "OWNER : clôturer le non reçu ; contrôles du reçu toujours possibles",
+        "operationId": "post_purchases_id_close",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Purchase" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, doublon de ligne, quantité fractionnaire",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "description": "Session/JWT manquant ou invalide" },
+          "403": { "description": "Rôle ou site interdit" },
+          "409": {
+            "description": "Conflit : référence dupliquée, version, dépassement ou commande clôturée",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": { "description": "Dépendance indisponible, refus par défaut" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CloseInput" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Supplier": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "maxLength": 160 },
+          "phone": { "type": "string", "maxLength": 40 },
+          "active": { "type": "boolean" },
+          "version": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["id", "name", "phone", "active", "version"]
+      },
+      "SupplierInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "phone": { "type": "string", "maxLength": 40 }
+        },
+        "required": ["name", "phone"]
+      },
+      "SupplierUpdate": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "phone": { "type": "string", "maxLength": 40 },
+          "active": { "type": "boolean" },
+          "version": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["name", "phone", "active", "version"]
+      },
+      "PurchaseItem": {
+        "type": "object",
+        "properties": {
+          "variantId": { "type": "string", "format": "uuid" },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "unitCost": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.0001,
+            "maximum": 9999999999.9999
+          }
+        },
+        "required": ["variantId", "quantity", "unitCost"]
+      },
+      "PurchaseInput": {
+        "type": "object",
+        "properties": {
+          "supplierId": { "type": "string", "format": "uuid" },
+          "branchId": { "type": "string", "format": "uuid" },
+          "reference": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "note": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PurchaseItem" },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": ["supplierId", "branchId", "reference", "note", "items"]
+      },
+      "PurchaseLine": {
+        "type": "object",
+        "properties": {
+          "variantId": { "type": "string", "format": "uuid" },
+          "sku": { "type": "string" },
+          "label": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 0 },
+          "received": { "type": "integer", "minimum": 0 },
+          "remaining": { "type": "integer", "minimum": 0 },
+          "unitCost": { "type": "number", "minimum": 0 }
+        },
+        "required": [
+          "variantId",
+          "sku",
+          "label",
+          "quantity",
+          "received",
+          "remaining"
+        ],
+        "description": "unitCost présent pour OWNER uniquement, omis pour STOCK_MANAGER. Coût convenu au moment de la commande, figé ; pas de dette comptabilisée."
+      },
+      "DeliveryLine": {
+        "type": "object",
+        "properties": {
+          "variantId": { "type": "string", "format": "uuid" },
+          "sku": { "type": "string" },
+          "label": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 0 },
+          "accepted": { "type": "integer", "minimum": 0 },
+          "rejected": { "type": "integer", "minimum": 0 },
+          "pending": { "type": "integer", "minimum": 0 }
+        },
+        "required": [
+          "variantId",
+          "sku",
+          "label",
+          "quantity",
+          "accepted",
+          "rejected",
+          "pending"
+        ]
+      },
+      "Delivery": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "reference": { "type": "string" },
+          "reason": { "type": "string" },
+          "actor": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DeliveryLine" }
+          }
+        },
+        "required": ["id", "reference", "reason", "actor", "createdAt", "items"]
+      },
+      "Purchase": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "supplierId": { "type": "string", "format": "uuid" },
+          "supplierName": { "type": "string" },
+          "branchId": { "type": "string", "format": "uuid" },
+          "branchName": { "type": "string" },
+          "reference": { "type": "string" },
+          "note": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["OPEN", "PARTIAL", "RECEIVED", "CLOSED"]
+          },
+          "version": { "type": "integer", "minimum": 0 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PurchaseLine" }
+          },
+          "receipts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Delivery" }
+          }
+        },
+        "required": [
+          "id",
+          "supplierId",
+          "supplierName",
+          "branchId",
+          "branchName",
+          "reference",
+          "note",
+          "status",
+          "version",
+          "createdAt",
+          "items",
+          "receipts"
+        ]
+      },
+      "ReceiptItem": {
+        "type": "object",
+        "properties": {
+          "variantId": { "type": "string", "format": "uuid" },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000 }
+        },
+        "required": ["variantId", "quantity"]
+      },
+      "ReceiptInput": {
+        "type": "object",
+        "properties": {
+          "reference": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReceiptItem" },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": ["reference", "reason", "items"]
+      },
+      "InspectionItem": {
+        "type": "object",
+        "properties": {
+          "variantId": { "type": "string", "format": "uuid" },
+          "accepted": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+          "rejected": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+        },
+        "required": ["variantId", "accepted", "rejected"]
+      },
+      "InspectionInput": {
+        "type": "object",
+        "properties": {
+          "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InspectionItem" },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": ["reason", "items"],
+        "description": "Quantités entières : somme >0 pour chaque ligne et <= pending de cette réception. Validation OWNER, jamais disponible avant contrôle."
+      },
+      "CloseInput": {
+        "type": "object",
+        "properties": {
+          "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["reason"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "code": { "type": "string" } },
+        "required": []
+      },
+      "PurchasePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Purchase" }
+          },
+          "page": { "type": "integer", "minimum": 0 },
+          "size": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "total": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["items", "page", "size", "total"]
+      },
+      "SupplierPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Supplier" }
+          },
+          "page": { "type": "integer", "minimum": 0 },
+          "size": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "total": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["items", "page", "size", "total"]
+      }
+    }
+  }
+}

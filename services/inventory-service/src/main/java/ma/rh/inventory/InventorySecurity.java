@@ -17,7 +17,7 @@ public class InventorySecurity {
    return roles.stream().filter(String.class::isInstance).map(String.class::cast).filter(Set.of("OWNER","CASHIER","STOCK_MANAGER")::contains).<GrantedAuthority>map(r->new SimpleGrantedAuthority("ROLE_"+r)).toList();
   });
   return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-   .authorizeHttpRequests(a->a.requestMatchers("/actuator/health","/actuator/health/**").permitAll().requestMatchers("/api/v1/catalog/**","/api/v1/stock/**").hasAnyRole("OWNER","CASHIER","STOCK_MANAGER").anyRequest().denyAll())
+   .authorizeHttpRequests(a->a.requestMatchers("/actuator/health","/actuator/health/**").permitAll().requestMatchers("/api/v1/purchases","/api/v1/purchases/**").hasAnyRole("OWNER","STOCK_MANAGER").requestMatchers("/api/v1/catalog/**","/api/v1/stock/**").hasAnyRole("OWNER","CASHIER","STOCK_MANAGER").anyRequest().denyAll())
    .oauth2ResourceServer(o->o.jwt(j->j.jwtAuthenticationConverter(converter))).build();
  }
 }

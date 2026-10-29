@@ -42,6 +42,8 @@ export interface StockRow {
   incoming: number;
   initialized: boolean;
   lowStock: boolean;
+  quarantine?: number;
+  rejected?: number;
 }
 export interface TransferLine {
   variantId: string;
