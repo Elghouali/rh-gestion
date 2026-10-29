@@ -1,0 +1,2007 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RH Inventory API",
+    "version": "0.2.0",
+    "description": "Catalogue et stock interne. Accès navigateur par le BFF avec session HttpOnly et protection CSRF ; JWT issuer/audience vérifiés entre services. Pas d'API de vente publique. Les écritures sont atomiques et idempotentes. Coûts d'ouverture optionnels, aucune valorisation CUMP. Outbox persistée sans publication pour ce jalon."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/catalog/products": {
+      "get": {
+        "summary": "Catalogue commun, rôle RH et affectation active requis",
+        "operationId": "getProductPage",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": ""
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      },
+      "post": {
+        "summary": "OWNER : créer un modèle",
+        "operationId": "postProductInput",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/catalog/products/{id}": {
+      "put": {
+        "summary": "OWNER : modifier ou archiver un modèle (version optimiste)",
+        "operationId": "putProductUpdate",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/catalog/variants": {
+      "get": {
+        "summary": "Rechercher SKU, couleur, marque ou modèle",
+        "operationId": "getVariantPage",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": ""
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariantPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      },
+      "post": {
+        "summary": "OWNER : créer une variante unique",
+        "operationId": "postVariantInput",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/catalog/variants/{id}": {
+      "put": {
+        "summary": "OWNER : modifier prix/seuil/état ; identité verrouillée après mouvement",
+        "operationId": "putVariantUpdate",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/balances": {
+      "get": {
+        "summary": "Stock des sites affectés, disponible + transit + attendu",
+        "operationId": "getStockRowPage",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": ""
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockRowPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/movements": {
+      "get": {
+        "summary": "Journal immuable limité aux sites autorisés",
+        "operationId": "getMovementPage",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "variantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/destinations": {
+      "get": {
+        "summary": "OWNER ou STOCK_MANAGER : annuaire des destinations actives",
+        "operationId": "getSite",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Site"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/openings": {
+      "post": {
+        "summary": "OWNER : ouverture avant tout mouvement, zéro explicite accepté",
+        "operationId": "postOpening",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Opening"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/adjustments": {
+      "post": {
+        "summary": "OWNER : correction signée et motivée, stock négatif interdit",
+        "operationId": "postAdjustment",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Adjustment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/transfers": {
+      "get": {
+        "summary": "Transferts liés à un site autorisé",
+        "operationId": "getTransferPage",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      },
+      "post": {
+        "summary": "OWNER/STOCK_MANAGER : expédier depuis un site affecté vers une destination active",
+        "operationId": "postTransferInput",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/transfers/{id}": {
+      "get": {
+        "summary": "Détail si source ou destination autorisée",
+        "operationId": "getTransfer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/transfers/{id}/receipts": {
+      "post": {
+        "summary": "OWNER/STOCK_MANAGER : réceptionner au site destination autorisé (partiel possible)",
+        "operationId": "postReceipt",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    },
+    "/stock/transfers/{id}/losses": {
+      "post": {
+        "summary": "OWNER : constater une perte en transit",
+        "operationId": "postTransitLoss",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            },
+            "description": "Clé stable pour le retry de la même commande. Portée utilisateur + opération ; payload différent avec même clé = 409."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, quantité fractionnaire ou en-tête manquant",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Rôle ou site non autorisé"
+          },
+          "404": {
+            "description": "Ressource absente"
+          },
+          "409": {
+            "description": "Conflit métier, stock insuffisant, doublon, version périmée ou clé réutilisée pour un autre payload",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Administration indisponible ; aucun accès accordé par défaut"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Site": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "code", "name", "type"]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["PHONE", "ACCESSORY"]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": ["id", "name", "brand", "category", "active", "version"]
+      },
+      "ProductInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "category": {
+            "type": "string",
+            "enum": ["PHONE", "ACCESSORY"]
+          }
+        },
+        "required": ["name", "brand", "category"]
+      },
+      "ProductUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["name", "brand", "active", "version"]
+      },
+      "Variant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$"
+          },
+          "color": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "ramGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 1024
+          },
+          "storageGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 65536
+          },
+          "wholesalePrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "retailPrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "minimumStock": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "productName",
+          "brand",
+          "category",
+          "sku",
+          "color",
+          "ramGb",
+          "storageGb",
+          "wholesalePrice",
+          "retailPrice",
+          "minimumStock",
+          "active",
+          "version"
+        ]
+      },
+      "VariantInput": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$"
+          },
+          "color": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "ramGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 1024
+          },
+          "storageGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 65536
+          },
+          "wholesalePrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "retailPrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "minimumStock": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "productId",
+          "sku",
+          "color",
+          "wholesalePrice",
+          "retailPrice"
+        ],
+        "description": "RAM et stockage obligatoires pour PHONE ; optionnels pour ACCESSORY. minimumStock absent vaut 0."
+      },
+      "VariantUpdate": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$"
+          },
+          "color": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "ramGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 1024
+          },
+          "storageGb": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 65536
+          },
+          "wholesalePrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "retailPrice": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "maximum": 9999999999.99
+          },
+          "minimumStock": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "sku",
+          "color",
+          "wholesalePrice",
+          "retailPrice",
+          "active",
+          "version"
+        ]
+      },
+      "Opening": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "unitCost": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "multipleOf": 0.0001,
+            "maximum": 9999999999.9999
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": ["branchId", "variantId", "quantity", "reason"]
+      },
+      "Adjustment": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "delta": {
+            "type": "integer",
+            "minimum": -1000000,
+            "maximum": 1000000,
+            "not": {
+              "const": 0
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": ["branchId", "variantId", "delta", "reason"]
+      },
+      "ReceiptItem": {
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          }
+        },
+        "required": ["variantId", "quantity"]
+      },
+      "TransferInput": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ReceiptItem"
+            }
+          }
+        },
+        "required": ["sourceId", "destinationId", "reason", "items"]
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ReceiptItem"
+            }
+          }
+        },
+        "required": ["reason", "items"]
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "kind"]
+      },
+      "StockRow": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/Variant"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inTransit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "incoming": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "initialized": {
+            "type": "boolean"
+          },
+          "lowStock": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "branchId",
+          "variant",
+          "quantity",
+          "inTransit",
+          "incoming",
+          "initialized",
+          "lowStock"
+        ],
+        "description": "Les quantités ne sont confirmées que si initialized=true. Pagination par variante : une variante produit une ligne par site autorisé ; total compte les variantes, pas les lignes."
+      },
+      "TransferLine": {
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "received": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lost": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remaining": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "variantId",
+          "sku",
+          "label",
+          "quantity",
+          "received",
+          "lost",
+          "remaining"
+        ]
+      },
+      "Transfer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "destinationName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["OPEN", "PARTIAL", "RECEIVED", "RESOLVED"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransferLine"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "destinationId",
+          "sourceName",
+          "destinationName",
+          "status",
+          "createdAt",
+          "items"
+        ]
+      },
+      "Movement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": ["SELLABLE", "TRANSIT"]
+          },
+          "delta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantityAfter": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unitCost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "transferId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "kind",
+          "reason",
+          "actor",
+          "createdAt",
+          "branchId",
+          "variantId",
+          "sku",
+          "label",
+          "bucket",
+          "delta",
+          "quantityAfter"
+        ],
+        "description": "unitCost omis si inconnu ou si acteur non OWNER ; transferId omis hors transfert. Libellés et SKU sont les instantanés au moment du mouvement."
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "ProductPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["items", "page", "size", "total"]
+      },
+      "VariantPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["items", "page", "size", "total"]
+      },
+      "StockRowPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockRow"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["items", "page", "size", "total"]
+      },
+      "TransferPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transfer"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["items", "page", "size", "total"]
+      },
+      "MovementPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": ["items", "page", "size", "total"]
+      }
+    }
+  }
+}

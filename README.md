@@ -11,7 +11,7 @@ Application interne RH — Spring Boot microservices et Angular.
 - Impression A4 de la fiche des établissements.
 - Tests unitaires, API, PostgreSQL réel/JWT signé et parcours navigateur.
 
-Le module catalogue et stock est maintenant implémenté : variantes couleur/RAM/stockage, stock par site, ouvertures, ajustements et transferts avec réception partielle. Sa validation navigateur complète reste à terminer ; voir docs/STATUS.md. Ventes, crédits, caisse et SAV restent à développer.
+Le module catalogue et stock est maintenant implémenté : variantes couleur/RAM/stockage, stock par site, ouvertures, ajustements et transferts avec réception partielle. La recette locale est validée : 68 tests backend, 42 tests Angular et cinq parcours navigateur ; voir docs/acceptance/inventory.md. Ventes, crédits, caisse et SAV restent à développer.
 
 ## Prérequis
 Windows : PowerShell 7, Java 21, Maven Wrapper inclus, Node 24 compatible Angular 21 et Docker Desktop démarré, en mode conteneurs Linux.
@@ -85,6 +85,19 @@ Les données de démonstration ne se chargent qu'avec le profil local.
 Modifier .env après import initial ne change pas automatiquement les mots de passe déjà enregistrés dans PostgreSQL/Keycloak. Toute rotation doit être appliquée dans les services concernés, sans effacer les volumes.
 
 ## Prochaine étape
-Terminer la recette navigateur Inventory et sa documentation, puis achats et ventes. Voir docs/STATUS.md et docs/architecture/conception-v2.md.
+Développer les achats et réceptions fournisseurs, puis les commandes et ventes. Voir docs/STATUS.md et docs/architecture/conception-v2.md.
 
 Sur certains JDK Windows, définir RH_JAVA_SOCKET_TMP dans .env vers un répertoire local existant au chemin court corrige la création des sockets AF_UNIX. Le lanceur transmet ce réglage uniquement aux tests, puis restaure JAVA_TOOL_OPTIONS.
+
+## Catalogue et stock
+Guide opérateur : [docs/guides/inventory.md](docs/guides/inventory.md).
+Décisions : [ADR 002](docs/decisions/002-inventory.md). Contrat : [OpenAPI Inventory](contracts/openapi/inventory.json).
+
+| Rôle | Opérations de ce jalon |
+|---|---|
+| OWNER | Catalogue, ouverture, ajustement, transfert, réception et perte en transit |
+| STOCK_MANAGER | Consultation de ses sites, expédition depuis une source affectée, réception dans une destination affectée |
+| CASHIER | Consultation de ses sites, sans coûts d'achat ni écritures stock |
+
+Le stock non compté reste non initialisé. Le zéro doit être confirmé par comptage. Les coûts peuvent rester inconnus ; aucune valorisation comptable n'est calculée. Les transferts restent en transit jusqu'à réception (partielle possible). Un journal ne se modifie pas : les corrections sont de nouveaux mouvements.
+Le script start-local ajoute les secrets manquants et crée la base Inventory sur une installation existante via tools/ensure-inventory-db.ps1, sans supprimer les volumes. Les événements outbox sont persistés ; leur publication n'est pas encore implémentée.

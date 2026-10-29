@@ -27,6 +27,7 @@ test('catalogue variants, all five locations, transit, partial receipts and scop
   browser,
 }) => {
   test.setTimeout(150000);
+  page.setDefaultTimeout(15000);
   const suffix = Date.now().toString();
   const model = '[DEMO E2E] Phone ' + suffix;
   const sku = 'E2E-' + suffix + '-128';
@@ -56,10 +57,12 @@ test('catalogue variants, all five locations, transit, partial receipts and scop
       .getByRole('button', { name: 'Rechercher', exact: true })
       .click();
     await expect(
-      editor.getByLabel('Modèle', { exact: true }).locator('option[value=' + JSON.stringify(product.id) + ']'),
+      editor
+        .getByRole('combobox', { name: 'Modèle', exact: true })
+        .locator('option[value=' + JSON.stringify(product.id) + ']'),
     ).toHaveCount(1);
-    await editor.getByLabel('Modèle', { exact: true }).selectOption(product.id);
-    await editor.getByLabel('Référence SKU', { exact: true }).fill(reference);
+    await editor.getByRole('combobox', { name: 'Modèle', exact: true }).selectOption(product.id);
+    await editor.getByRole('textbox', { name: 'Référence SKU', exact: true }).fill(reference);
     await editor.getByLabel('Couleur', { exact: true }).fill(color);
     await editor.getByLabel('RAM (Go)', { exact: true }).fill('8');
     await editor.getByLabel('Stockage (Go)', { exact: true }).fill(String(storage));
@@ -84,8 +87,12 @@ test('catalogue variants, all five locations, transit, partial receipts and scop
       .getByRole('button', { name: 'Stock initial', exact: true })
       .click();
     editor = page.locator('.editor');
-    await editor.getByLabel('Établissement', { exact: true }).selectOption(site.id);
-    await editor.getByLabel('Référence SKU', { exact: true }).selectOption(variant.id);
+    await editor
+      .getByRole('combobox', { name: 'Établissement', exact: true })
+      .selectOption(site.id);
+    await editor
+      .getByRole('combobox', { name: 'Référence SKU', exact: true })
+      .selectOption(variant.id);
     const qty = site.id === depot ? 10 : index;
     await editor.getByLabel('Quantité', { exact: true }).fill(String(qty));
     await editor.getByLabel(/Coût unitaire connu/).fill('70.00');
@@ -113,12 +120,14 @@ test('catalogue variants, all five locations, transit, partial receipts and scop
     .click();
   await expect(
     stockEditor
-      .getByLabel('Référence SKU', { exact: true })
+      .getByRole('combobox', { name: 'Référence SKU', exact: true })
       .locator('option[value="' + variant.id + '"]'),
   ).toHaveCount(1);
-  await stockEditor.getByLabel('Destination', { exact: true }).selectOption(shop);
+  await stockEditor.getByRole('combobox', { name: 'Destination', exact: true }).selectOption(shop);
   await stockEditor.getByLabel('Motif', { exact: true }).fill('Transfert de démonstration E2E');
-  await stockEditor.getByLabel('Référence SKU', { exact: true }).selectOption(variant.id);
+  await stockEditor
+    .getByRole('combobox', { name: 'Référence SKU', exact: true })
+    .selectOption(variant.id);
   await stockEditor.getByLabel('Quantité', { exact: true }).fill('4');
   await save(stockPage, 'Expédier');
   expect(await quantity(depot)).toBe(6);
@@ -132,7 +141,7 @@ test('catalogue variants, all five locations, transit, partial receipts and scop
     editor = page.locator('.editor');
     await editor.getByLabel('Motif', { exact: true }).fill('Réception de démonstration E2E');
     await editor.getByLabel('Quantité', { exact: true }).fill(String(qty));
-    await save(page);
+    await save(page, 'Réceptionner');
   }
   expect(await quantity(shop)).toBe(initialShop + 4);
   expect(await quantity(depot, 'inTransit')).toBe(0);
